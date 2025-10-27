@@ -1,4 +1,5 @@
 use super::token::{Span, Token, TokenKind};
+use crate::ast::nodes::FStringPart;
 use crate::utils::errors::{Diagnostic, DiagnosticSeverity};
 use thiserror::Error;
 
@@ -144,11 +145,98 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
 
         let mut i = idx;
         while i < line_without_newline.len() {
-            let ch = line_without_newline.as_bytes()[i];
             let absolute_start = line_offset + i;
             let column_index = i + 1;
 
-            match ch {
+            // Handle multi-character operators first
+            if i + 1 < line_without_newline.len() && line_without_newline.is_char_boundary(i) && line_without_newline.is_char_boundary(i + 2) {
+                let two_chars = &line_without_newline[i..i + 2];
+                match two_chars {
+                    "==" => {
+                        tokens.push(Token::new(
+                            TokenKind::EqEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "!=" => {
+                        tokens.push(Token::new(
+                            TokenKind::Neq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "<=" => {
+                        tokens.push(Token::new(
+                            TokenKind::LtEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    ">=" => {
+                        tokens.push(Token::new(
+                            TokenKind::GtEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "->" => {
+                        tokens.push(Token::new(
+                            TokenKind::Arrow,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    ".." => {
+                        tokens.push(Token::new(
+                            TokenKind::DoubleDot,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "+=" => {
+                        tokens.push(Token::new(
+                            TokenKind::PlusEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "-=" => {
+                        tokens.push(Token::new(
+                            TokenKind::MinusEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "*=" => {
+                        tokens.push(Token::new(
+                            TokenKind::StarEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    "/=" => {
+                        tokens.push(Token::new(
+                            TokenKind::SlashEq,
+                            Span::new(absolute_start, absolute_start + 2),
+                        ));
+                        i += 2;
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+
+            match line_without_newline.as_bytes()[i] {
                 b' ' | b'\t' => {
                     i += 1;
                 }
@@ -169,9 +257,44 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
                     ));
                     i += 1;
                 }
+                b'{' => {
+                    tokens.push(Token::new(
+                        TokenKind::LBrace,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'}' => {
+                    tokens.push(Token::new(
+                        TokenKind::RBrace,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'[' => {
+                    tokens.push(Token::new(
+                        TokenKind::LBracket,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b']' => {
+                    tokens.push(Token::new(
+                        TokenKind::RBracket,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
                 b',' => {
                     tokens.push(Token::new(
                         TokenKind::Comma,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'.' => {
+                    tokens.push(Token::new(
+                        TokenKind::Dot,
                         Span::new(absolute_start, absolute_start + 1),
                     ));
                     i += 1;
@@ -204,6 +327,34 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
                     ));
                     i += 1;
                 }
+                b'%' => {
+                    tokens.push(Token::new(
+                        TokenKind::Percent,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'|' => {
+                    tokens.push(Token::new(
+                        TokenKind::Pipe,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'&' => {
+                    tokens.push(Token::new(
+                        TokenKind::Amp,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'!' => {
+                    tokens.push(Token::new(
+                        TokenKind::Bang,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
                 b':' => {
                     tokens.push(Token::new(
                         TokenKind::Colon,
@@ -218,14 +369,53 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
                     ));
                     i += 1;
                 }
+                b'<' => {
+                    tokens.push(Token::new(
+                        TokenKind::Lt,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
+                b'>' => {
+                    tokens.push(Token::new(
+                        TokenKind::Gt,
+                        Span::new(absolute_start, absolute_start + 1),
+                    ));
+                    i += 1;
+                }
                 b'"' => {
                     let start = i;
                     i += 1;
-                    while i < line_without_newline.len()
-                        && line_without_newline.as_bytes()[i] != b'"'
-                    {
-                        i += 1;
+                    let mut value = String::new();
+                    let mut is_fstring = false;
+                    let mut parts = Vec::new();
+
+                    while i < line_without_newline.len() && line_without_newline.as_bytes()[i] != b'"' {
+                        if line_without_newline.as_bytes()[i] == b'{' {
+                            // Check if this is an f-string
+                            if i + 1 < line_without_newline.len() && line_without_newline.as_bytes()[i + 1] != b'{' {
+                                if !is_fstring {
+                                    is_fstring = true;
+                                    parts.push(FStringPart::Text(value.clone()));
+                                    value.clear();
+                                }
+                                // TODO: Parse expression inside braces
+                                // For now, just treat as text
+                                value.push('{');
+                                i += 1;
+                            } else {
+                                value.push('{');
+                                i += 1;
+                            }
+                        } else if line_without_newline.as_bytes()[i] == b'}' && is_fstring {
+                            value.push('}');
+                            i += 1;
+                        } else {
+                            value.push(line_without_newline.as_bytes()[i] as char);
+                            i += 1;
+                        }
                     }
+
                     if i >= line_without_newline.len() {
                         let span = Span::new(
                             line_offset + start,
@@ -238,27 +428,41 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
                         });
                         break;
                     }
-                    let value = &line_without_newline[start + 1..i];
-                    let span = Span::new(line_offset + start, line_offset + i + 1);
-                    tokens.push(Token::new(
-                        TokenKind::StringLiteral(value.to_string()),
-                        span,
-                    ));
+
+                    if is_fstring {
+                        parts.push(FStringPart::Text(value));
+                        let span = Span::new(line_offset + start, line_offset + i + 1);
+                        tokens.push(Token::new(
+                            TokenKind::FString { parts },
+                            span,
+                        ));
+                    } else {
+                        let span = Span::new(line_offset + start, line_offset + i + 1);
+                        tokens.push(Token::new(
+                            TokenKind::StringLiteral(value),
+                            span,
+                        ));
+                    }
                     i += 1;
                 }
                 ch if ch.is_ascii_digit() => {
                     let start = i;
                     i += 1;
                     while i < line_without_newline.len()
-                        && line_without_newline.as_bytes()[i].is_ascii_digit()
+                        && (line_without_newline.as_bytes()[i].is_ascii_digit()
+                            || line_without_newline.as_bytes()[i] == b'_')
                     {
                         i += 1;
                     }
-                    if i < line_without_newline.len() && line_without_newline.as_bytes()[i] == b'.'
+                    // Check for decimal point, but not if it's followed by another dot (range operator)
+                    if i < line_without_newline.len() 
+                        && line_without_newline.as_bytes()[i] == b'.'
+                        && (i + 1 >= line_without_newline.len() || line_without_newline.as_bytes()[i + 1] != b'.')
                     {
                         i += 1;
                         while i < line_without_newline.len()
-                            && line_without_newline.as_bytes()[i].is_ascii_digit()
+                            && (line_without_newline.as_bytes()[i].is_ascii_digit()
+                                || line_without_newline.as_bytes()[i] == b'_')
                         {
                             i += 1;
                         }
@@ -280,11 +484,46 @@ pub fn tokenize(source: &str) -> LexResult<Vec<Token>> {
                     let span = Span::new(line_offset + start, line_offset + i);
                     let kind = match value {
                         "fn" => TokenKind::Fn,
-                        "print" => TokenKind::Print,
+                        "let" => TokenKind::Let,
                         "return" => TokenKind::Return,
+                        "if" => TokenKind::If,
+                        "else" => TokenKind::Else,
+                        "elif" => TokenKind::Elif,
+                        "for" => TokenKind::For,
+                        "while" => TokenKind::While,
+                        "break" => TokenKind::Break,
+                        "continue" => TokenKind::Continue,
+                        "in" => TokenKind::In,
+                        "use" => TokenKind::Use,
+                        "from" => TokenKind::From,
+                        "as" => TokenKind::As,
+                        "async" => TokenKind::Async,
+                        "await" => TokenKind::Await,
+                        "spawn" => TokenKind::Spawn,
+                        "match" => TokenKind::Match,
+                        "case" => TokenKind::Case,
+                        "true" => TokenKind::True,
+                        "false" => TokenKind::False,
+                        "print" => TokenKind::Print,
                         _ => TokenKind::Identifier(value.to_string()),
                     };
                     tokens.push(Token::new(kind, span));
+                }
+                ch if ch > 127 => {
+                    // Unicode identifier (like π, α, Δ)
+                    let start = i;
+                    i += 1;
+                    while i < line_without_newline.len() {
+                        let next_ch = line_without_newline.as_bytes()[i];
+                        if next_ch.is_ascii_alphanumeric() || next_ch == b'_' || next_ch > 127 {
+                            i += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    let value = &line_without_newline[start..i];
+                    let span = Span::new(line_offset + start, line_offset + i);
+                    tokens.push(Token::new(TokenKind::UnicodeIdentifier(value.to_string()), span));
                 }
                 other => {
                     let span = Span::new(absolute_start, absolute_start + 1);
