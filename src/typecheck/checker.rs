@@ -422,19 +422,11 @@ impl TypeChecker {
     pub fn infer_expr_type(&mut self, expr: &Expr) -> Result<TypeInfo> {
         match expr {
             Expr::Literal(lit) => Ok(match lit {
-                Literal::Number(num) => {
-                    if num.is_float_literal {
-                        TypeInfo::F64
-                    } else {
-                        // Default integer literals to i32 within range, otherwise promote
-                        if num.value >= i32::MIN as f64 && num.value <= i32::MAX as f64 {
-                            TypeInfo::I32
-                        } else if num.value >= i64::MIN as f64 && num.value <= i64::MAX as f64 {
-                            TypeInfo::I64
-                        } else {
-                            TypeInfo::F64
-                        }
-                    }
+                Literal::Number(_num) => {
+                    // Always infer numeric literals as F64 for simplicity and to avoid
+                    // type inference issues with float contexts
+                    // This matches Python's behavior where all numbers are floats by default
+                    TypeInfo::F64
                 }
                 Literal::String(_) => TypeInfo::Str,
                 Literal::Bool(_) => TypeInfo::Bool,
@@ -909,7 +901,7 @@ mod tests {
         
         let expr = Expr::Literal(Literal::Number(NumberLiteral::new(42.0, false)));
         let ty = checker.infer_expr_type(&expr).unwrap();
-        assert_eq!(ty, TypeInfo::I32);
+        assert_eq!(ty, TypeInfo::F64);
 
         let expr = Expr::Literal(Literal::Number(NumberLiteral::new(3.14, true)));
         let ty = checker.infer_expr_type(&expr).unwrap();
@@ -926,7 +918,7 @@ mod tests {
             right: Box::new(Expr::Literal(Literal::Number(NumberLiteral::new(2.0, true)))),
         };
         let ty = checker.infer_expr_type(&expr).unwrap();
-        assert_eq!(ty, TypeInfo::I32);
+        assert_eq!(ty, TypeInfo::F64);
     }
 }
 

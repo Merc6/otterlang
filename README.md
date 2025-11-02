@@ -17,11 +17,13 @@ Benchmarked against C and Rust using the [Leibniz formula for π](https://en.wik
 
 | Language | Compiler | Avg Time (5 runs) | Relative to C |
 | ------------- | ------------- | ------------- | ------------- |
-| C | `gcc -O3` | 0.072s | 1.00x (baseline) |
-| Rust | `rustc -O` | 0.074s | 1.03x |
-| OtterLang | `otter --release` | 0.074s | 1.03x |
+| C | `gcc -O3` | 0.070s | 1.00x (baseline) |
+| Rust | `rustc -O` | 0.080s | 1.14x |
+| OtterLang | `otter --release` | 0.090s | 1.28x |
 
-*Benchmarks run on macOS with LLVM 15. Run `examples/benchmark.sh` to test yourself.*
+*Each run includes a warm-up execution (not timed). Benchmarks run on macOS with LLVM 15. Run `examples/benchmark.sh` to test yourself.*
+
+**Note:** These benchmarks are run with a warm-up execution and may not be 100% accurate. Results can vary based on system load, CPU throttling, and other factors.
 
 ## Quick Setup
 

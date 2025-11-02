@@ -636,19 +636,40 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             Statement::Assignment { name, expr }
         });
 
+    let path_segment = choice((
+        just(TokenKind::Dot).to(".".to_string()),
+        just(TokenKind::DoubleDot).to("..".to_string()),
+        identifier_parser(),
+    ))
+    .boxed();
+
+    let path_separator = choice((
+        just(TokenKind::Slash).to("/".to_string()),
+        just(TokenKind::Colon).to(":".to_string()),
+    ));
+
+    let module_path = path_segment.clone().then(
+        path_separator
+            .then(path_segment.clone())
+            .repeated(),
+    )
+    .map(|(first, rest)| {
+        let mut module = first;
+        for (sep, segment) in rest {
+            module.push_str(&sep);
+            module.push_str(&segment);
+        }
+        module
+    });
+
     let use_stmt = just(TokenKind::Use)
-        .ignore_then(identifier_parser())
-        .then_ignore(just(TokenKind::Colon))
-        .then(identifier_parser())
+        .ignore_then(module_path)
         .then(
             just(TokenKind::As)
                 .ignore_then(identifier_parser())
                 .or_not(),
         )
-        .map(|((namespace, module), alias)| Statement::Use {
-            module: format!("{}:{}", namespace, module),
-            alias,
-        });
+        .map(|(module, alias)| Statement::Use { module, alias });
 
     let break_stmt = just(TokenKind::Break).map(|_| Statement::Break);
     let continue_stmt = just(TokenKind::Continue).map(|_| Statement::Continue);

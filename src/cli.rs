@@ -64,6 +64,10 @@ pub struct OtterCli {
     debug: bool,
 
     #[arg(long, global = true)]
+    /// Disable cache for this compilation.
+    no_cache: bool,
+
+    #[arg(long, global = true)]
     /// Target triple for cross-compilation (e.g., wasm32-unknown-unknown, thumbv7m-none-eabi)
     target: Option<String>,
 
@@ -380,6 +384,7 @@ struct CompilationSettings {
     tasks_trace: bool,
     debug: bool,
     target: Option<String>,
+    no_cache: bool,
 }
 
 impl CompilationSettings {
@@ -396,11 +401,12 @@ impl CompilationSettings {
             tasks_trace: cli.tasks_trace,
             debug: cli.debug,
             target: cli.target.clone(),
+            no_cache: cli.no_cache,
         }
     }
 
     fn allow_cache(&self) -> bool {
-        !(self.dump_tokens || self.dump_ast || self.dump_ir)
+        !(self.dump_tokens || self.dump_ast || self.dump_ir || self.no_cache)
     }
 
     fn cache_build_options(&self) -> CacheBuildOptions {
