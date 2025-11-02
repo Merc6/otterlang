@@ -17,6 +17,11 @@ impl TypeChecker {
         // Register built-in functions
         Self::register_builtins(&mut context);
 
+        // Common type aliases (language-level names to internal types)
+        context.define_type_alias("float".to_string(), TypeInfo::F64);
+        context.define_type_alias("int".to_string(), TypeInfo::I32);
+        context.define_type_alias("number".to_string(), TypeInfo::F64);
+
         Self {
             errors: Vec::new(),
             context,
@@ -417,10 +422,19 @@ impl TypeChecker {
     pub fn infer_expr_type(&mut self, expr: &Expr) -> Result<TypeInfo> {
         match expr {
             Expr::Literal(lit) => Ok(match lit {
-                Literal::Number(_n) => {
-                    // Always infer numeric literals as F64 for consistency
-                    // This avoids type inference issues with float parameters
-                    TypeInfo::F64
+                Literal::Number(num) => {
+                    if num.is_float_literal {
+                        TypeInfo::F64
+                    } else {
+                        // Default integer literals to i32 within range, otherwise promote
+                        if num.value >= i32::MIN as f64 && num.value <= i32::MAX as f64 {
+                            TypeInfo::I32
+                        } else if num.value >= i64::MIN as f64 && num.value <= i64::MAX as f64 {
+                            TypeInfo::I64
+                        } else {
+                            TypeInfo::F64
+                        }
+                    }
                 }
                 Literal::String(_) => TypeInfo::Str,
                 Literal::Bool(_) => TypeInfo::Bool,
@@ -887,17 +901,17 @@ impl Default for TypeChecker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::nodes::{BinaryOp, Expr, Literal};
+        use crate::ast::nodes::{BinaryOp, Expr, Literal, NumberLiteral};
 
     #[test]
     fn test_type_inference_literal() {
         let mut checker = TypeChecker::new();
         
-        let expr = Expr::Literal(Literal::Number(42.0));
+        let expr = Expr::Literal(Literal::Number(NumberLiteral::new(42.0, false)));
         let ty = checker.infer_expr_type(&expr).unwrap();
         assert_eq!(ty, TypeInfo::I32);
 
-        let expr = Expr::Literal(Literal::Number(3.14));
+        let expr = Expr::Literal(Literal::Number(NumberLiteral::new(3.14, true)));
         let ty = checker.infer_expr_type(&expr).unwrap();
         assert_eq!(ty, TypeInfo::F64);
     }
@@ -908,8 +922,8 @@ mod tests {
         
         let expr = Expr::Binary {
             op: BinaryOp::Add,
-            left: Box::new(Expr::Literal(Literal::Number(1.0))),
-            right: Box::new(Expr::Literal(Literal::Number(2.0))),
+            left: Box::new(Expr::Literal(Literal::Number(NumberLiteral::new(1.0, true)))),
+            right: Box::new(Expr::Literal(Literal::Number(NumberLiteral::new(2.0, true)))),
         };
         let ty = checker.infer_expr_type(&expr).unwrap();
         assert_eq!(ty, TypeInfo::I32);

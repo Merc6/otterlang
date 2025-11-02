@@ -354,10 +354,10 @@ impl Formatter {
     fn format_literal(&self, lit: &crate::ast::nodes::Literal) -> String {
         match lit {
             crate::ast::nodes::Literal::Number(n) => {
-                if n.fract() == 0.0 {
-                    format!("{}", *n as i64)
+                if !n.is_float_literal && n.value.fract() == 0.0 {
+                    format!("{}", n.value as i64)
                 } else {
-                    n.to_string()
+                    n.value.to_string()
                 }
             }
             crate::ast::nodes::Literal::Bool(b) => b.to_string(),

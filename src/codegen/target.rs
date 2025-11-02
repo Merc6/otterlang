@@ -38,11 +38,40 @@ impl TargetTriple {
 
         let arch = parts[0].to_string();
         let vendor = parts[1].to_string();
-        let os = parts[2].to_string();
-        let env = if parts.len() > 3 {
-            Some(parts[3..].join("-"))
+        let raw_os = parts[2];
+
+        // Separate OS base (alphabetic prefix) from version suffix (digits or dots)
+        let mut split_index = raw_os.len();
+        for (idx, ch) in raw_os.char_indices() {
+            if ch.is_ascii_digit() || ch == '.' {
+                split_index = idx;
+                break;
+            }
+        }
+
+        let (os_base, os_suffix) = raw_os.split_at(split_index);
+        let os = if os_base.is_empty() {
+            raw_os.to_string()
         } else {
+            os_base.to_string()
+        };
+
+        let mut extra_parts: Vec<String> = Vec::new();
+        if os == "darwin" {
+            extra_parts.push("macosx11.0.0".to_string());
+        } else if !os_suffix.trim_matches('.').is_empty() {
+            let trimmed = os_suffix.trim_start_matches('-').trim_start_matches('.');
+            if !trimmed.is_empty() {
+                extra_parts.push(trimmed.to_string());
+            }
+        }
+        if parts.len() > 3 {
+            extra_parts.push(parts[3..].join("-"));
+        }
+        let env = if extra_parts.is_empty() {
             None
+        } else {
+            Some(extra_parts.into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("-"))
         };
 
         Ok(Self { arch, vendor, os, env })

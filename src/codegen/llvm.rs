@@ -186,8 +186,7 @@ pub fn build_executable(
         compiler.cached_ir = Some(compiler.module.print_to_string().to_string());
     }
 
-    Target::initialize_native(&InitializationConfig::default())
-        .map_err(|e| anyhow!("failed to initialise LLVM target: {e}"))?;
+    Target::initialize_all(&InitializationConfig::default());
 
     // Determine target triple
     let target_triple = if let Some(ref target) = options.target {
@@ -196,10 +195,17 @@ pub fn build_executable(
         TargetTriple::default()
     };
     
-    let triple_str = target_triple.to_llvm_triple();
+    // Get the normalized triple string for LLVM
+    let triple_str = if target_triple.arch == "arm64" {
+        "aarch64-apple-darwin"
+    } else if target_triple.arch == "x86_64" && target_triple.os == "darwin" {
+        "x86_64-apple-darwin"
+    } else {
+        target_triple.to_llvm_triple()
+    };
     
-    // Convert to inkwell TargetTriple
-    let llvm_triple = inkwell::targets::TargetTriple::create(&triple_str);
+    // Create inkwell TargetTriple directly
+    let llvm_triple = inkwell::targets::TargetTriple::create(triple_str);
     compiler.module.set_triple(&llvm_triple);
 
     let target = Target::from_triple(&llvm_triple)
@@ -364,8 +370,7 @@ pub fn build_shared_library(
         compiler.cached_ir = Some(compiler.module.print_to_string().to_string());
     }
 
-    Target::initialize_native(&InitializationConfig::default())
-        .map_err(|e| anyhow!("failed to initialise LLVM target: {e}"))?;
+    Target::initialize_all(&InitializationConfig::default());
 
     // Determine target triple
     let target_triple = if let Some(ref target) = options.target {
@@ -374,10 +379,17 @@ pub fn build_shared_library(
         TargetTriple::default()
     };
     
-    let triple_str = target_triple.to_llvm_triple();
+    // Get the normalized triple string for LLVM
+    let triple_str = if target_triple.arch == "arm64" {
+        "aarch64-apple-darwin"
+    } else if target_triple.arch == "x86_64" && target_triple.os == "darwin" {
+        "x86_64-apple-darwin"
+    } else {
+        target_triple.to_llvm_triple()
+    };
     
-    // Convert to inkwell TargetTriple
-    let llvm_triple = inkwell::targets::TargetTriple::create(&triple_str);
+    // Create inkwell TargetTriple directly
+    let llvm_triple = inkwell::targets::TargetTriple::create(triple_str);
     compiler.module.set_triple(&llvm_triple);
 
     let target = Target::from_triple(&llvm_triple)
@@ -1920,10 +1932,10 @@ impl<'ctx> Compiler<'ctx> {
                     OtterType::Str,
                 ))
             }
-            Literal::Number(value) => {
+            Literal::Number(num) => {
                 // Always use F64 for floating point representation to avoid type conflicts
                 // The parser stores all numbers as f64, so we respect that
-                let float = self.context.f64_type().const_float(*value);
+                let float = self.context.f64_type().const_float(num.value);
                 Ok(EvaluatedValue::with_value(float.into(), OtterType::F64))
             }
             Literal::Bool(value) => {

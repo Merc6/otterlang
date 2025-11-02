@@ -1,3 +1,5 @@
+use std::hash::{Hash, Hasher};
+
 #[derive(Debug, Clone)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -357,10 +359,40 @@ pub enum UnaryOp {
     Not,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct NumberLiteral {
+    pub value: f64,
+    pub is_float_literal: bool,
+}
+
+impl NumberLiteral {
+    pub fn new(value: f64, is_float_literal: bool) -> Self {
+        Self {
+            value,
+            is_float_literal,
+        }
+    }
+}
+
+impl PartialEq for NumberLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        self.is_float_literal == other.is_float_literal && self.value.to_bits() == other.value.to_bits()
+    }
+}
+
+impl Eq for NumberLiteral {}
+
+impl Hash for NumberLiteral {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.to_bits().hash(state);
+        self.is_float_literal.hash(state);
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Literal {
     String(String),
-    Number(f64),
+    Number(NumberLiteral),
     Bool(bool),
     Unit, // Unit literal ()
 }
@@ -370,7 +402,7 @@ impl PartialEq for Literal {
         match (self, other) {
             (Literal::String(a), Literal::String(b)) => a == b,
             (Literal::Bool(a), Literal::Bool(b)) => a == b,
-            (Literal::Number(a), Literal::Number(b)) => a.to_bits() == b.to_bits(), // Compare f64 by bits
+            (Literal::Number(a), Literal::Number(b)) => a == b,
             (Literal::Unit, Literal::Unit) => true,
             _ => false,
         }
@@ -378,8 +410,6 @@ impl PartialEq for Literal {
 }
 
 impl Eq for Literal {}
-
-use std::hash::{Hash, Hasher};
 
 impl Hash for Literal {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -390,7 +420,7 @@ impl Hash for Literal {
             }
             Literal::Number(n) => {
                 1u8.hash(state);
-                n.to_bits().hash(state);
+                n.hash(state);
             }
             Literal::Bool(b) => {
                 2u8.hash(state);

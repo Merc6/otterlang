@@ -2,7 +2,8 @@ use chumsky::prelude::*;
 use chumsky::Stream;
 
 use crate::ast::nodes::{
-    BinaryOp, Block, Expr, FStringPart, Function, Literal, MatchArm, Param, Pattern, Program, Statement, Type, UnaryOp,
+    BinaryOp, Block, Expr, FStringPart, Function, Literal, MatchArm, NumberLiteral, Param, Pattern, Program, Statement,
+    Type, UnaryOp,
 };
 use crate::lexer::token::{Span, Token, TokenKind};
 use crate::utils::errors::{Diagnostic, DiagnosticSeverity};
@@ -223,14 +224,18 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKin
     let number_lit = select! { TokenKind::Number(value) => {
         // Remove underscores from the number
         let clean_value = value.replace('_', "");
+        let is_float_literal = value.contains('.') || value.contains('e') || value.contains('E');
         // Check if it contains a decimal point or is an integer
         if clean_value.contains('.') {
-            Expr::Literal(Literal::Number(clean_value.parse().unwrap_or_default()))
+            Expr::Literal(Literal::Number(NumberLiteral::new(
+                clean_value.parse().unwrap_or_default(),
+                true,
+            )))
         } else {
             // Parse as integer
             match clean_value.parse::<i64>() {
-                Ok(int_val) => Expr::Literal(Literal::Number(int_val as f64)), // Store as float for now
-                Err(_) => Expr::Literal(Literal::Number(0.0)), // fallback
+                Ok(int_val) => Expr::Literal(Literal::Number(NumberLiteral::new(int_val as f64, is_float_literal))),
+                Err(_) => Expr::Literal(Literal::Number(NumberLiteral::new(0.0, is_float_literal))),
             }
         }
     }};

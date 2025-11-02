@@ -33,14 +33,14 @@ impl ConstantPropagator {
             crate::ast::nodes::Literal::Bool(b) => Some(RuntimeConstant::Bool(*b)),
             crate::ast::nodes::Literal::Number(n) => {
                 // Try to determine if it's an integer or float
-                if n.fract() == 0.0 {
-                    if *n >= i32::MIN as f64 && *n <= i32::MAX as f64 {
-                        Some(RuntimeConstant::I32(*n as i32))
+                if !n.is_float_literal && n.value.fract() == 0.0 {
+                    if n.value >= i32::MIN as f64 && n.value <= i32::MAX as f64 {
+                        Some(RuntimeConstant::I32(n.value as i32))
                     } else {
-                        Some(RuntimeConstant::I64(*n as i64))
+                        Some(RuntimeConstant::I64(n.value as i64))
                     }
                 } else {
-                    Some(RuntimeConstant::F64(*n))
+                    Some(RuntimeConstant::F64(n.value))
                 }
             }
             crate::ast::nodes::Literal::String(s) => Some(RuntimeConstant::Str(s.clone())),
