@@ -1,6 +1,0 @@
-# Test file for async expressions
-fn main:
-    let x = 42
-    let awaited = await x  # Should just return 42
-    spawn x  # Spawn expression (returns unit, used as statement)
-    print(f"Awaited value: {awaited}")
