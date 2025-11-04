@@ -979,7 +979,9 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     //         return math.sqrt(self.x * self.x + self.y * self.y)
 
     // Field definition
-    let struct_field_def = struct_field.map(|field| (Some(field), None::<Function>));
+    let struct_field_def = struct_field
+        .then_ignore(newline.clone().or_not())
+        .map(|field| (Some(field), None::<Function>));
 
     // Method definition (def method(self, ...) -> ReturnType: ...)
     // Recreate parsers for method definition
@@ -1016,7 +1018,8 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             }
             Function::new(name, method_params, ret_ty, body)
         })
-        .map(|method| (None::<(String, Type)>, Some(method)));
+        .map(|method| (None::<(String, Type)>, Some(method)))
+        .then_ignore(newline.clone().or_not());
 
     let struct_body = choice((struct_field_def, struct_method_def))
         .repeated()
@@ -1038,7 +1041,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let struct_def = pub_keyword
         .clone()
-        .then(just(TokenKind::Identifier("struct".to_string())))
+        .then(just(TokenKind::Struct))
         .then(identifier_parser())
         .then(struct_generics)
         .then_ignore(just(TokenKind::Colon))

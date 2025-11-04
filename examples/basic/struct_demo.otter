@@ -5,7 +5,7 @@ struct Point:
     y: float
 
 struct Person:
-    name: string
+    name: str
     age: int
 
 def main:

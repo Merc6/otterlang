@@ -68,7 +68,6 @@ impl std::error::Error for OtError {}
 pub struct ErrorStack;
 
 impl ErrorStack {
-    /// Thread-local storage for the current error
     thread_local! {
         static CURRENT_ERROR: RefCell<Option<OtError>> = RefCell::new(None);
     }
@@ -265,8 +264,9 @@ mod tests {
         assert!(!ErrorStack::has_error());
     }
 
-    #[test]
-    fn test_error_context() {
+
+#[test]
+fn test_error_context() {
         ErrorStack::clear();
 
         // Push context (no error yet)

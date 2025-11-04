@@ -39,7 +39,10 @@ impl Runtime {
     pub fn new() -> Result<Self> {
         let registry = bootstrap_stdlib();
 
-        let ffi_root = cache_root()?.join("ffi");
+        let ffi_root = match cache_root() {
+            Ok(path) => path.join("ffi"),
+            Err(_) => return Err(anyhow!("Failed to get cache root")),
+        };
         fs::create_dir_all(&ffi_root).context("failed to create ffi cache directory")?;
 
         Ok(Self {

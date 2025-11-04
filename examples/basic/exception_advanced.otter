@@ -1,6 +1,6 @@
 use otter:fmt
 
-fn risky_operation(value: i32) -> i32:
+fn risky_operation(value: float) -> float:
     if value < 0:
         raise "Negative values not allowed"
     if value == 0:
@@ -9,16 +9,16 @@ fn risky_operation(value: i32) -> i32:
         raise "Value too large"
     return value * 2
 
-fn process_with_cleanup(items: list<i32>) -> i32:
+fn process_with_cleanup(items: list<float>) -> float:
     let total = 0
     for item in items:
         try:
             let processed = risky_operation(item)
             let total = total + processed
         except Error as e:
-            fmt.println("Skipping invalid item " + item + ": " + e.message)
+            fmt.println("Skipping invalid item ": error occurred")
         finally:
-            fmt.println("Processed item " + item)
+            fmt.println("Processed item " + item) 
     return total
 
 fn demonstrate_else_block():
@@ -27,7 +27,7 @@ fn demonstrate_else_block():
     for value in values:
         try:
             let result = risky_operation(value)
-            fmt.println("Successfully processed " + value + " -> " + result)
+            fmt.println("Successfully processed " + value + " -> " + result) 
         except Error:
             fmt.println("Failed to process " + value)
         else:
@@ -55,4 +55,4 @@ fn main():
     fmt.println()
     let test_items = [1, 2, -5, 0, 10, 150, 3]
     let result = process_with_cleanup(test_items)
-    fmt.println("Total processed: " + result)
+    fmt.println("Total processed: " + result) 

@@ -573,10 +573,10 @@ impl TypeChecker {
                 if let Some(expr) = expr {
                     // Type check the expression being raised
                     let expr_ty = self.infer_expr_type(expr)?;
-                    // The raised expression must be Error-compatible
-                    if !expr_ty.is_compatible_with(&TypeInfo::Error) {
+                    // The raised expression must be Error-compatible or a string (for convenience)
+                    if !expr_ty.is_compatible_with(&TypeInfo::Error) && expr_ty != TypeInfo::Str {
                         self.errors.push(TypeError::new(format!(
-                            "Cannot raise expression of type '{}', must be Error-compatible",
+                            "Cannot raise expression of type '{}', must be Error-compatible or a string",
                             expr_ty.display_name()
                         )));
                     }
@@ -971,6 +971,21 @@ impl TypeChecker {
                         }
                         TypeInfo::List(_) => Ok(TypeInfo::Unknown),
                         TypeInfo::Dict { .. } => Ok(TypeInfo::Unknown),
+                        TypeInfo::Error => {
+                            // Special handling for Error type fields
+                            match field.as_str() {
+                                "message" => Ok(TypeInfo::Str),
+                                "code" => Ok(TypeInfo::I32),
+                                "data" => Ok(TypeInfo::Str),
+                                _ => {
+                                    self.errors.push(TypeError::new(format!(
+                                        "Error type has no field '{}'. Available fields: message, code, data",
+                                        field
+                                    )));
+                                    Ok(TypeInfo::Error)
+                                }
+                            }
+                        }
                         _ => {
                             self.errors.push(
                                 TypeError::new(format!(
@@ -978,7 +993,7 @@ impl TypeChecker {
                                     field,
                                     object_type.display_name()
                                 ))
-                                .with_hint(format!("Only struct types support member access")),
+                                .with_hint(format!("Only struct types and Error support member access")),
                             );
                             Ok(TypeInfo::Error)
                         }

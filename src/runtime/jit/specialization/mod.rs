@@ -41,12 +41,12 @@ impl From<FfiType> for RuntimeType {
 }
 
 /// Runtime constant value for specialization
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum RuntimeConstant {
     Bool(bool),
     I32(i32),
     I64(i64),
-    F64(f64),
+    F64(u64), // Store as bits for hashing
     Str(String),
 }
 
@@ -57,13 +57,21 @@ impl RuntimeConstant {
             RuntimeConstant::Bool(b) => b.hash(&mut hasher),
             RuntimeConstant::I32(i) => i.hash(&mut hasher),
             RuntimeConstant::I64(i) => i.hash(&mut hasher),
-            RuntimeConstant::F64(f) => {
-                // Approximate hash for floats
-                f.to_bits().hash(&mut hasher)
-            }
+            RuntimeConstant::F64(bits) => bits.hash(&mut hasher),
             RuntimeConstant::Str(s) => s.hash(&mut hasher),
         }
         hasher.finish()
+    }
+
+    pub fn from_f64(f: f64) -> Self {
+        RuntimeConstant::F64(f.to_bits())
+    }
+
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            RuntimeConstant::F64(bits) => Some(f64::from_bits(*bits)),
+            _ => None,
+        }
     }
 }
 

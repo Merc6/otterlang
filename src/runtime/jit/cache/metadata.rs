@@ -1,33 +1,28 @@
-use std::time::{Duration, Instant};
+use serde::{Deserialize, Serialize};
 
-/// Metadata for cached functions
-#[derive(Debug, Clone)]
+/// JIT cache metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CacheMetadata {
-    pub created_at: Instant,
-    pub last_accessed: Instant,
-    pub access_count: u64,
-    pub compilation_time: Duration,
+    pub function_name: String,
+    pub source_hash: String,
+    pub compiled_at: u64,
+    pub size: usize,
 }
 
 impl CacheMetadata {
-    pub fn new(compilation_time: Duration) -> Self {
-        let now = Instant::now();
+    pub fn new(function_name: String, source_hash: String, size: usize) -> Self {
         Self {
-            created_at: now,
-            last_accessed: now,
-            access_count: 1,
-            compilation_time,
+            function_name,
+            source_hash,
+            size,
+            compiled_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         }
     }
 
-    pub fn record_access(&mut self) {
-        self.last_accessed = Instant::now();
-        self.access_count += 1;
-    }
-}
-
-impl Default for CacheMetadata {
-    fn default() -> Self {
-        Self::new(Duration::ZERO)
+    pub fn is_valid(&self, current_source_hash: &str) -> bool {
+        self.source_hash == current_source_hash
     }
 }

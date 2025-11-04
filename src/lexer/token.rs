@@ -79,6 +79,7 @@ pub enum TokenKind {
     Except,
     Finally,
     Raise,
+    Struct,
 
     // Identifiers
     Identifier(String),
@@ -171,6 +172,7 @@ impl Hash for TokenKind {
             TokenKind::Except => 29u16.hash(state),
             TokenKind::Finally => 30u16.hash(state),
             TokenKind::Raise => 31u16.hash(state),
+            TokenKind::Struct => 32u16.hash(state),
 
             // Identifiers
             TokenKind::Identifier(name) => {
@@ -285,6 +287,7 @@ impl TokenKind {
             TokenKind::Except => "except",
             TokenKind::Finally => "finally",
             TokenKind::Raise => "raise",
+            TokenKind::Struct => "struct",
 
             // Identifiers
             TokenKind::Identifier(_) => "identifier",
@@ -403,6 +406,7 @@ impl Token {
                 | TokenKind::Except
                 | TokenKind::Finally
                 | TokenKind::Raise
+                | TokenKind::Struct
         )
     }
 

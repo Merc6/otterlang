@@ -6,7 +6,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use colored::Colorize;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use crate::cache::{CacheBuildOptions, CacheEntry, CacheManager, CacheMetadata, CompilationInputs};
 use crate::codegen::{
@@ -224,7 +224,7 @@ fn compile_pipeline(
     source: &str,
     settings: &CompilationSettings,
 ) -> Result<CompilationStage> {
-    let cache_manager = CacheManager::new()?;
+    let mut cache_manager = CacheManager::new();
     let cache_options = settings.cache_build_options();
     let mut profiler = Profiler::new();
     let source_id = path.display().to_string();
@@ -239,11 +239,11 @@ fn compile_pipeline(
     // Generate initial cache key for quick lookup check
     let initial_cache_key = profiler.record_phase("Fingerprint", || {
         cache_manager.fingerprint(&inputs, &cache_options, VERSION)
-    })?;
+    });
 
     if settings.allow_cache() {
         if let Some(entry) =
-            profiler.record_phase("Cache lookup", || cache_manager.lookup(&initial_cache_key))?
+            profiler.record_phase("Cache lookup", || cache_manager.lookup(&initial_cache_key))
         {
             debug!(cache_hit = %entry.binary_path.display());
             profiler.push_phase("Compile skipped", Duration::from_millis(0));
@@ -312,16 +312,16 @@ fn compile_pipeline(
     let expr_types = type_checker.into_expr_type_map();
 
     // Update inputs with module dependencies for accurate cache fingerprinting
-    inputs.imports = module_deps.clone();
-    let cache_key = profiler.record_phase("Fingerprint (with modules)", || {
+    inputs.imports = module_deps.iter().map(|p| p.display().to_string()).collect();
+      let cache_key = profiler.record_phase("Fingerprint (with modules)", || {
         cache_manager.fingerprint(&inputs, &cache_options, VERSION)
-    })?;
+    });
 
     // Check cache again with module dependencies included
     if settings.allow_cache() {
         if let Some(entry) = profiler.record_phase("Cache lookup (with modules)", || {
             cache_manager.lookup(&cache_key)
-        })? {
+        }) {
             debug!(cache_hit = %entry.binary_path.display());
             profiler.push_phase("Compile skipped", Duration::from_millis(0));
             return Ok(CompilationStage {
@@ -332,7 +332,9 @@ fn compile_pipeline(
     }
 
     let codegen_options = settings.codegen_options();
-    let binary_path = cache_manager.binary_path(&cache_key);
+    let binary_path = cache_manager.binary_path(&cache_key).unwrap_or_else(|| {
+        PathBuf::from("./target/tmp_binary")
+    });
 
     let artifact = profiler.record_phase("LLVM Codegen", || {
         build_executable(&program, &expr_types, &binary_path, &codegen_options)
@@ -344,22 +346,24 @@ fn compile_pipeline(
         .map(|phase| phase.duration.as_millis())
         .unwrap_or_default();
 
-    let binary_size = CacheMetadata::binary_size(&artifact.binary)?;
+    let binary_size = std::fs::metadata(&artifact.binary)?.len();
 
     let metadata = CacheMetadata::new(
-        cache_key.as_str().to_string(),
+        cache_key.clone(),
         VERSION,
         codegen::current_llvm_version(),
         canonical_or(path),
-        inputs.imports.clone(),
+        inputs.dependencies.clone(),
         artifact.binary.clone(),
         binary_size,
-        build_duration_ms,
-        cache_options.clone(),
-        Vec::new(),
+        build_duration_ms as u64,
+        PathBuf::from("./cache"), // cache_path
+        inputs.imports.clone(),
     );
 
-    cache_manager.store(&metadata)?;
+    if let Err(e) = cache_manager.store(&metadata) {
+        warn!("Failed to store cache entry: {}", e);
+    }
 
     info!(compiled = %artifact.binary.display(), size = binary_size);
 
@@ -402,6 +406,9 @@ struct CompilationSettings {
     debug: bool,
     target: Option<String>,
     no_cache: bool,
+    enable_cache: bool,
+    cache_dir: PathBuf,
+    max_cache_size: usize,
 }
 
 impl CompilationSettings {
@@ -419,6 +426,9 @@ impl CompilationSettings {
             debug: cli.debug,
             target: cli.target.clone(),
             no_cache: cli.no_cache,
+            enable_cache: !cli.no_cache,
+            cache_dir: PathBuf::from("./cache"),
+            max_cache_size: 1024 * 1024 * 1024, // 1GB default
         }
     }
 
@@ -428,6 +438,9 @@ impl CompilationSettings {
 
     fn cache_build_options(&self) -> CacheBuildOptions {
         CacheBuildOptions {
+            enable_cache: self.enable_cache,
+            cache_dir: self.cache_dir.clone(),
+            max_cache_size: self.max_cache_size,
             release: self.release,
             lto: self.release,
             emit_ir: self.dump_ir,

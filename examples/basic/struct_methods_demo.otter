@@ -8,10 +8,9 @@ struct Point:
         # Calculate distance from origin
         return math.sqrt(self.x * self.x + self.y * self.y)
     
-    def move(self, dx: float, dy: float):
-        # Mutate self (Pythonic style)
-        self.x = self.x + dx
-        self.y = self.y + dy
+    def move(self, dx: float, dy: float) -> Point:
+        # Return new point (functional style)
+        return Point(x=self.x + dx, y=self.y + dy)
 
 def main:
     # Pythonic struct initialization
@@ -22,7 +21,7 @@ def main:
     print(f"Distance from origin: {dist}")
     
     # Move the point
-    p.move(1.0, 1.0)
+    p = p.move(1.0, 1.0)
     print(f"After move: ({p.x}, {p.y})")
     
     # Call method again

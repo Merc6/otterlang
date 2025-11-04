@@ -1,0 +1,9 @@
+# 🦦 OtterLang Format Module - Basic Printing Functions
+
+# Print a line with newline
+fn println(msg: str):
+    print(msg)
+
+# Print to stderr with newline
+fn eprintln(msg: str):
+    print(msg)  # TODO: implement stderr printing

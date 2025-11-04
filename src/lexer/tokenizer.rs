@@ -647,6 +647,7 @@ impl LexerState {
             "except" => TokenKind::Except,
             "finally" => TokenKind::Finally,
             "raise" => TokenKind::Raise,
+            "struct" => TokenKind::Struct,
             _ => TokenKind::Identifier(value.to_string()),
         };
 

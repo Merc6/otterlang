@@ -29,7 +29,10 @@ pub struct CargoBridge {
 impl CargoBridge {
     /// Creates the bridge coordinator rooted under `.otter/cache/ffi`.
     pub fn new(registry: BridgeSymbolRegistry) -> Result<Self> {
-        let root = cache_root()?.join("ffi");
+        let root = match cache_root() {
+            Ok(path) => path.join("ffi"),
+            Err(_) => return Err(anyhow!("Failed to get cache root")),
+        };
         fs::create_dir_all(&root).context("failed to create ffi cache root")?;
         Ok(Self { root, registry })
     }

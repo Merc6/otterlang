@@ -104,7 +104,7 @@ impl JitEngine {
             profiler: GlobalProfiler::new(),
             specializer: Specializer::new(),
             type_tracker: TypeTracker::new(),
-            function_cache: FunctionCache::new(256 * 1024 * 1024), // 256MB cache
+            function_cache: FunctionCache::new_with_capacity(256 * 1024 * 1024), // 256MB cache
             inliner: Inliner::new(),
             reoptimizer: Reoptimizer::new(),
             memory_manager: AdaptiveMemoryManager::new(),

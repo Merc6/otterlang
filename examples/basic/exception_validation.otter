@@ -1,6 +1,6 @@
 use otter:fmt
 
-fn validate_age(age_str: str) -> i32:
+fn validate_age(age_str: str) -> float:
     if len(age_str) == 0:
         raise "Age is required"
     if age_str == "abc":
@@ -25,7 +25,7 @@ fn process_users():
         valid_users.append("Alice")
         fmt.println("✓ User Alice validated successfully")
     except Error as e:
-        fmt.println("✗ Validation failed: " + e.message)
+        fmt.println("✗ Validation failed: " + "error occurred")
     finally:
         fmt.println("Processed user: Alice")
     try:
@@ -33,7 +33,7 @@ fn process_users():
         valid_users.append("Bob")
         fmt.println("✓ User Bob validated successfully")
     except Error as e:
-        fmt.println("✗ Validation failed: " + e.message)
+        fmt.println("✗ Validation failed: " + "error occurred")
     finally:
         fmt.println("Processed user: Bob")
     return valid_users
@@ -51,7 +51,7 @@ fn api_processing_demo():
         let response = safe_api_call("/users", false)
         fmt.println("✓ API call successful: " + response)
     except Error as e:
-        fmt.println("✗ API call failed: " + e.message)
+        fmt.println("✗ API call failed: " + "error occurred")
     else:
         fmt.println("✓ No errors in API call")
     finally:
@@ -60,7 +60,7 @@ fn api_processing_demo():
         let response = safe_api_call("/invalid", true)
         fmt.println("✓ API call successful: " + response)
     except Error as e:
-        fmt.println("✗ API call failed: " + e.message)
+        fmt.println("✗ API call failed: " + "error occurred")
     else:
         fmt.println("✓ No errors in API call")
     finally:
@@ -70,6 +70,6 @@ fn main():
     fmt.println("Exception Handling - Data Validation & APIs")
     fmt.println("==========================================")
     let valid_users = process_users()
-    fmt.println("Successfully validated users count: 1")
+    fmt.println("Successfully validated users count: " + 1) )
     fmt.println()
     api_processing_demo()

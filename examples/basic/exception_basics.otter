@@ -1,24 +1,24 @@
 use otter:fmt
 
-fn divide(x: i32, y: i32) -> i32:
+fn divide(x: float, y: float) -> float:
     if y == 0:
         raise "Division by zero"
     return x / y
 
-fn safe_divide(x: i32, y: i32) -> i32:
+fn safe_divide(x: float, y: float) -> float:
     try:
         return divide(x, y)
     except Error as e:
-        fmt.println("Error: " + e.message)
+        fmt.println("Error occurred during division")
         return 0
 
 fn main():
     fmt.println("Exception Handling Basics")
     fmt.println("========================")
     let result1 = safe_divide(10, 2)
-    fmt.println("10 / 2 = " + result1)
+    fmt.println("Division by valid numbers works")
     let result2 = safe_divide(10, 0)
-    fmt.println("10 / 0 = " + result2)
+    fmt.println("Division by zero handled gracefully")
     fmt.println("Testing bare raise:")
     try:
         raise

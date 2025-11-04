@@ -1,8 +1,8 @@
 # 🦦 OtterLang Task Module
 # Thin wrappers around the runtime task APIs exposed via FFI.
 
-fn spawn(fn: fn()) -> TaskHandle:
-    return task.spawn(fn)
+fn spawn_task(func) -> TaskHandle:
+    return task.spawn(func)
 
 fn join(handle: TaskHandle):
     task.join(handle)
@@ -23,22 +23,22 @@ fn channel_float() -> Channel<float>:
     return task.channel<float>()
 
 fn send_string(chan: Channel<string>, value: string) -> bool:
-    return task.send<string>(chan, value) != 0
+    return task.send_string(chan, value) != 0
 
 fn send_int(chan: Channel<int>, value: int) -> bool:
-    return task.send<int>(chan, value) != 0
+    return task.send_int(chan, value) != 0
 
 fn send_float(chan: Channel<float>, value: float) -> bool:
-    return task.send<float>(chan, value) != 0
+    return task.send_float(chan, value) != 0
 
 fn recv_string(chan: Channel<string>) -> string:
-    return task.recv<string>(chan)
+    return task.recv_string(chan)
 
 fn recv_int(chan: Channel<int>) -> int:
-    return task.recv<int>(chan)
+    return task.recv_int(chan)
 
 fn recv_float(chan: Channel<float>) -> float:
-    return task.recv<float>(chan)
+    return task.recv_float(chan)
 
 fn close(chan: Channel<any>):
     task.close(chan)

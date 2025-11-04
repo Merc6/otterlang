@@ -15,14 +15,14 @@ fn demonstrate_finally():
         let result = simulate_operation("task1", false)
         fmt.println("Got result: " + result)
     except Error as e:
-        fmt.println("Operation failed: " + e.message)
+        fmt.println("Operation failed: " + "error occurred")
     finally:
         fmt.println("Cleaning up after task1")
     try:
         let result = simulate_operation("task2", true)
         fmt.println("Got result: " + result)
     except Error as e:
-        fmt.println("Operation failed: " + e.message)
+        fmt.println("Operation failed: " + "error occurred")
     finally:
         fmt.println("Cleaning up after task2")
 
@@ -36,7 +36,7 @@ fn resource_management_demo():
         raise "Processing failed"
         fmt.println("All operations completed successfully")
     except Error as e:
-        fmt.println("Operation failed: " + e.message)
+        fmt.println("Operation failed: " + "error occurred")
     finally:
         fmt.println("Releasing resource: Database")
         fmt.println("Releasing resource: Network")

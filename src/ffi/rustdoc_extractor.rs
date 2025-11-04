@@ -16,7 +16,10 @@ use crate::cache::path::cache_root;
 /// - Prefers stable where possible; falls back to nightly flags when required.
 /// - Uses a per-crate cache directory under ~/.otter_cache/ffi/rustdoc/<crate>.
 pub fn generate_rustdoc_json(dep: &DependencyConfig) -> Result<PathBuf> {
-    let root = cache_root()?.join("ffi").join("rustdoc").join(&dep.name);
+    let root = match cache_root() {
+        Ok(path) => path.join("ffi").join("rustdoc").join(&dep.name),
+        Err(_) => return Err(anyhow!("Failed to get cache root")),
+    };
     fs::create_dir_all(&root)
         .with_context(|| format!("failed to create rustdoc cache dir {}", root.display()))?;
     let manifest = root.join("Cargo.toml");

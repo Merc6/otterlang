@@ -1,68 +1,28 @@
-use super::{CachedFunction, SpecializationKey};
-use std::collections::HashMap;
+use super::function_cache::CachedFunction;
 
-/// Eviction policy for function cache
-pub trait EvictionPolicy: Send + Sync {
-    /// Decide which function to evict
-    fn evict(
-        &mut self,
-        cache: &HashMap<SpecializationKey, CachedFunction>,
-    ) -> Option<SpecializationKey>;
-
-    /// Called when a function is accessed
-    fn on_access(&mut self, key: &SpecializationKey);
-
-    /// Called when a function is added
-    fn on_add(&mut self, key: &SpecializationKey);
-
-    /// Called when a function is removed
-    fn on_remove(&mut self, key: &SpecializationKey);
+/// Cache eviction policy
+pub struct CacheEvictor {
+    max_size: usize,
+    current_size: usize,
 }
 
-/// LRU (Least Recently Used) eviction policy
-pub struct LruEvictionPolicy {
-    access_order: Vec<SpecializationKey>,
-}
-
-impl LruEvictionPolicy {
-    pub fn new() -> Self {
+impl CacheEvictor {
+    pub fn new(max_size: usize) -> Self {
         Self {
-            access_order: Vec::new(),
+            max_size,
+            current_size: 0,
         }
     }
-}
 
-impl EvictionPolicy for LruEvictionPolicy {
-    fn evict(
-        &mut self,
-        cache: &HashMap<SpecializationKey, CachedFunction>,
-    ) -> Option<SpecializationKey> {
-        // Return the least recently used key
-        for key in &self.access_order {
-            if cache.contains_key(key) {
-                return Some(key.clone());
-            }
-        }
-        None
+    pub fn should_evict(&self, _function: &CachedFunction) -> bool {
+        self.current_size >= self.max_size
     }
 
-    fn on_access(&mut self, key: &SpecializationKey) {
-        // Move to end (most recently used)
-        self.access_order.retain(|k| k != key);
-        self.access_order.push(key.clone());
+    pub fn evict(&mut self, function: &CachedFunction) {
+        self.current_size = self.current_size.saturating_sub(function.size());
     }
 
-    fn on_add(&mut self, key: &SpecializationKey) {
-        self.access_order.push(key.clone());
-    }
-
-    fn on_remove(&mut self, key: &SpecializationKey) {
-        self.access_order.retain(|k| k != key);
-    }
-}
-
-impl Default for LruEvictionPolicy {
-    fn default() -> Self {
-        Self::new()
+    pub fn add(&mut self, function: &CachedFunction) {
+        self.current_size += function.size();
     }
 }

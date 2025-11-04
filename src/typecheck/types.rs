@@ -164,9 +164,11 @@ impl TypeInfo {
                     && r1.is_compatible_with(r2)
             }
 
-            // Error types are compatible with nothing (except themselves)
+            // Error types are compatible with strings (for convenience) and themselves
             (TypeInfo::Error, TypeInfo::Error) => true,
-            (TypeInfo::Error, _) | (_, TypeInfo::Error) => false,
+            (TypeInfo::Str, TypeInfo::Error) => true, // Allow raising strings as errors
+            (TypeInfo::Error, _) => false, // Error types are not compatible with anything else
+            (_, TypeInfo::Error) => false, // Nothing else is compatible with Error (except strings above)
 
             _ => false,
         }

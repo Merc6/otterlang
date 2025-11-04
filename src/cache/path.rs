@@ -1,30 +1,34 @@
-use std::env;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
-use directories::BaseDirs;
+/// Cache path utilities
+pub fn cache_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let mut cache_dir = directories::BaseDirs::new()
+        .ok_or("Could not determine cache directory")?
+        .cache_dir()
+        .to_path_buf();
+    cache_dir.push("otterlang");
+    Ok(cache_dir)
+}
 
-pub fn cache_root() -> Result<PathBuf> {
-    if let Ok(custom) = env::var("OTTER_CACHE_DIR") {
-        return Ok(PathBuf::from(custom));
+pub fn ensure_cache_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let cache_dir = cache_root()?;
+    std::fs::create_dir_all(&cache_dir)?;
+    Ok(cache_dir)
+}
+
+pub fn cache_key_for_file(path: &Path) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+
+    // Also hash file modification time if possible
+    if let Ok(metadata) = std::fs::metadata(path) {
+        if let Ok(modified) = metadata.modified() {
+            modified.hash(&mut hasher);
+        }
     }
 
-    let base_dirs = BaseDirs::new().context("failed to determine user directories")?;
-    Ok(base_dirs.home_dir().join(".otter_cache"))
-}
-
-pub fn binaries_dir(root: &Path) -> PathBuf {
-    root.join("binaries")
-}
-
-pub fn metadata_dir(root: &Path) -> PathBuf {
-    root.join("metadata")
-}
-
-pub fn ensure_structure(root: &Path) -> Result<()> {
-    let binaries = binaries_dir(root);
-    let metadata = metadata_dir(root);
-    std::fs::create_dir_all(binaries).context("failed to create binaries cache directory")?;
-    std::fs::create_dir_all(metadata).context("failed to create metadata cache directory")?;
-    Ok(())
+    format!("{:x}", hasher.finish())
 }
