@@ -450,7 +450,12 @@ impl LexerState {
                 }
             }
             b'"' => {
-                self.tokenize_string();
+                // Check for triple-quoted string (multi-line)
+                if self.peek_char(1) == Some(b'"') && self.peek_char(2) == Some(b'"') {
+                    self.tokenize_multiline_string();
+                } else {
+                    self.tokenize_string();
+                }
             }
             b'f' => {
                 // Check for f-string before treating as regular identifier
@@ -534,6 +539,70 @@ impl LexerState {
         }
 
         // Unterminated string at EOF
+        let span = self.create_span(start, self.offset - start);
+        self.emit_error(LexerError::UnterminatedString {
+            line: self.line,
+            column: self.column,
+            span,
+        });
+    }
+
+    fn tokenize_multiline_string(&mut self) {
+        let start = self.offset;
+        self.advance(3); // Skip opening """
+
+        let mut result = String::new();
+
+        while let Some(ch) = self.current_char() {
+            match ch {
+                b'"' => {
+                    // Check if this is the closing """
+                    if self.peek_char(1) == Some(b'"') && self.peek_char(2) == Some(b'"') {
+                        let span = Span::new(start, self.offset + 3);
+                        self.tokens.push(Token::new(
+                            TokenKind::StringLiteral(result),
+                            span,
+                        ));
+                        self.advance(3); // Skip closing """
+                        return;
+                    } else {
+                        // Just a regular " in the string
+                        result.push('"');
+                        self.advance(1);
+                    }
+                }
+                b'\\' => {
+                    // Escape sequence (same as regular strings)
+                    self.advance(1);
+                    if let Some(escaped) = self.current_char() {
+                        let escaped_char = match escaped {
+                            b'n' => '\n',
+                            b't' => '\t',
+                            b'r' => '\r',
+                            b'\\' => '\\',
+                            b'"' => '"',
+                            b'\'' => '\'',
+                            _ => escaped as char, // Unknown escape, keep as-is
+                        };
+                        result.push(escaped_char);
+                        self.advance(1);
+                    }
+                }
+                b'\n' => {
+                    // Actual newline in multi-line string
+                    result.push('\n');
+                    self.line += 1;
+                    self.column = 1;
+                    self.offset += 1;
+                }
+                _ => {
+                    result.push(ch as char);
+                    self.advance(1);
+                }
+            }
+        }
+
+        // Unterminated multi-line string at EOF
         let span = self.create_span(start, self.offset - start);
         self.emit_error(LexerError::UnterminatedString {
             line: self.line,
