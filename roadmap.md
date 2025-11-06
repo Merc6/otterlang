@@ -36,6 +36,16 @@ This roadmap outlines major areas of investment and their intended scope. Items 
 - Testing framework
   - Built-in test runner (`otter test`) and assertion library
   - Snapshot testing hooks and timing output
+- Package manager (otterpkg)
+  - Dependency resolution and version management
+  - Local and remote package registry support
+  - Lockfile generation and reproducible builds
+  - Integration with `otter build` and module system
+- Documentation and website
+  - Official documentation site with search and examples
+  - Interactive API reference with live code samples
+  - Tutorials and guides for common use cases
+  - Package registry browser and search
 - Diagnostics and observability
   - Rich error messages with spans and suggestions
   - Built-in tracing and structured logs
@@ -63,6 +73,13 @@ This roadmap outlines major areas of investment and their intended scope. Items 
 - Testing
   - `otter test` discovers and runs tests, returning non-zero on failure
   - Assertions report clear diffs and spans
+- Package manager
+  - `otterpkg init` creates a new project with dependencies
+  - `otterpkg add <package>` resolves and installs dependencies
+  - `otterpkg build` uses lockfile for reproducible builds
+- Documentation
+  - Website hosts searchable docs with interactive examples
+  - Package registry is browsable and searchable
 
 ### Out of Scope (for now)
 - Distributed runtime
