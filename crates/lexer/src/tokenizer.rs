@@ -1,6 +1,8 @@
-use super::token::{Span, Token, TokenKind};
-use crate::utils::errors::{Diagnostic, DiagnosticSeverity};
+use crate::token::{Token, TokenKind};
+use common::Span;
+
 use thiserror::Error;
+use utils::errors::{Diagnostic, DiagnosticSeverity};
 
 #[derive(Debug, Error, Clone)]
 pub enum LexerError {

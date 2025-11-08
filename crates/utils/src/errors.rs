@@ -1,5 +1,5 @@
-use crate::lexer::token::Span;
 use ariadne::{Color, Label, Report, ReportKind, Source};
+use common::Span;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
