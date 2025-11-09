@@ -1,6 +1,6 @@
 use super::call_graph::CallGraph;
-use crate::codegen::CodegenOptLevel;
 use ast::nodes::{Function, Program};
+use codegen::CodegenOptLevel;
 
 /// Re-optimizes hot functions
 pub struct Reoptimizer {

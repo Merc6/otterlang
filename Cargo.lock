@@ -1445,6 +1445,30 @@ dependencies = [
 [[package]]
 name = "runtime"
 version = "0.1.0"
+dependencies = [
+ "abi_stable",
+ "ahash",
+ "anyhow",
+ "ast",
+ "cache",
+ "cargo_metadata",
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-utils",
+ "inkwell",
+ "inventory",
+ "libloading 0.8.9",
+ "libm",
+ "once_cell",
+ "parking_lot",
+ "rayon",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sysinfo",
+ "tempfile",
+ "tracing",
+]
 
 [[package]]
 name = "rustc_version"
