@@ -3,7 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use inkwell::AddressSpace;
+use inkwell::OptimizationLevel;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context as LlvmContext;
@@ -14,16 +16,13 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue,
 };
-use inkwell::AddressSpace;
-use inkwell::OptimizationLevel;
 
 use crate::codegen::target::TargetTriple;
-use crate::ffi::{BridgeSymbolRegistry, CargoBridge, DynamicLibraryLoader, FunctionSpec, TypeSpec};
-use crate::runtime::ffi;
 use crate::runtime::ffi::register_dynamic_exports;
 use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 use crate::typecheck::TypeInfo;
 use ast::nodes::{BinaryOp, Block, Expr, Function, Literal, Program, Statement, Type};
+use ffi::{BridgeSymbolRegistry, CargoBridge, DynamicLibraryLoader, FunctionSpec, TypeSpec};
 use libloading::Library;
 
 pub struct CodegenOptions {
@@ -215,7 +214,7 @@ pub fn build_executable(
     let context = LlvmContext::create();
     let module = context.create_module("otter");
     let builder = context.create_builder();
-    let registry = ffi::bootstrap_stdlib();
+    let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
     let mut compiler = Compiler::new(&context, module, builder, registry, expr_types);
 
@@ -295,6 +294,22 @@ pub fn build_executable(
         })?;
 
     // Create a C runtime shim for the FFI functions (target-specific)
+    let runtime_c = output.with_extension("runtime.c");
+    // Parse native triple for runtime code generation
+    let runtime_triple = TargetTriple::parse(&native_str)
+        .unwrap_or_else(|_| TargetTriple::new("x86_64", "unknown", "linux", Some("gnu")));
+    let runtime_c_content = runtime_triple.runtime_c_code();
+    fs::write(&runtime_c, runtime_c_content).context("failed to write runtime C file")?;
+
+    // Compile the runtime C file (target-specific)
+    let runtime_o = output.with_extension("runtime.o");
+    let c_compiler = runtime_triple.c_compiler();
+    let mut cc = Command::new(&c_compiler);
+
+    // Add target-specific compiler flags
+    if runtime_triple.is_wasm() {
+        // For WebAssembly, use clang with target flag
+        cc.arg("--target").arg(&native_str).arg("-c");
     let runtime_c = if runtime_triple.is_wasm() {
         None
     } else {
@@ -419,7 +434,7 @@ pub fn build_shared_library(
     let context = LlvmContext::create();
     let module = context.create_module("otter_jit");
     let builder = context.create_builder();
-    let registry = ffi::bootstrap_stdlib();
+    let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
     let mut compiler = Compiler::new(&context, module, builder, registry, expr_types);
 
@@ -509,6 +524,9 @@ pub fn build_shared_library(
     };
 
     // Compile runtime C file (target-specific)
+    let runtime_o = output.with_extension("runtime.o");
+    let c_compiler = runtime_triple.c_compiler();
+    let mut cc = Command::new(&c_compiler);
     let runtime_o = if let Some(ref rt_c) = runtime_c {
         let runtime_o = output.with_extension("runtime.o");
         let c_compiler = runtime_triple.c_compiler();
@@ -1527,7 +1545,9 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                 } else {
                     // Variable doesn't exist - assignments require pre-declared variables
                     // This should not happen for properly declared variables
-                    bail!("cannot assign to undeclared variable `{name}`. Use `let {name} = ...` to declare it first.");
+                    bail!(
+                        "cannot assign to undeclared variable `{name}`. Use `let {name} = ...` to declare it first."
+                    );
                 };
 
                 let value = evaluated
@@ -1737,7 +1757,11 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
             Expr::Struct { name, fields } => {
                 // Struct instantiation - TODO: Full implementation requires struct type support
                 // For now, return an opaque handle (struct support is experimental)
-                bail!("struct instantiation is not yet fully implemented in codegen. Struct: {}, fields: {:?}", name, fields.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>())
+                bail!(
+                    "struct instantiation is not yet fully implemented in codegen. Struct: {}, fields: {:?}",
+                    name,
+                    fields.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>()
+                )
             }
         }
     }
@@ -2496,10 +2520,10 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                             }
                             _ => {
                                 bail!(
-                                        "argument type mismatch for `{symbol_name}`: expected {:?}, found {:?}",
-                                        expected_ty,
-                                        value.ty
-                                    );
+                                    "argument type mismatch for `{symbol_name}`: expected {:?}, found {:?}",
+                                    expected_ty,
+                                    value.ty
+                                );
                             }
                         }
                     }

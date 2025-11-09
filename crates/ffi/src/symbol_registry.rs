@@ -5,7 +5,7 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
-use super::metadata::{load_bridge_metadata, BridgeMetadata};
+use super::metadata::{BridgeMetadata, load_bridge_metadata};
 use super::rust_stubgen::FunctionSpec;
 
 /// Represents a function that should be exported from a bridge crate.

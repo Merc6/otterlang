@@ -577,6 +577,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "ffi"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cache",
+ "duct",
+ "libloading 0.8.9",
+ "once_cell",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sha1",
+ "tracing",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1173,6 +1190,7 @@ dependencies = [
  "crossbeam-utils",
  "directories",
  "duct",
+ "ffi",
  "glob",
  "indicatif",
  "inkwell",
