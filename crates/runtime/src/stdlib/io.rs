@@ -176,7 +176,7 @@ pub unsafe extern "C" fn otter_std_io_lines(path: *const c_char) -> u64 {
 
             // Create a list handle using builtins module
             // We'll use the builtin list functions directly
-            extern "C" {
+            unsafe extern "C" {
                 fn otter_builtin_list_new() -> u64;
                 fn otter_builtin_append_list_string(handle: u64, val: *const c_char) -> i32;
             }
@@ -362,7 +362,7 @@ pub unsafe extern "C" fn otter_std_io_list_dir(path: *const c_char) -> u64 {
 
     match fs::read_dir(&path_str) {
         Ok(entries) => {
-            extern "C" {
+            unsafe extern "C" {
                 fn otter_builtin_list_new() -> u64;
                 fn otter_builtin_append_list_string(handle: u64, val: *const c_char) -> i32;
             }
