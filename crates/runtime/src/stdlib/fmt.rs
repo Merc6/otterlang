@@ -1,4 +1,4 @@
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 fn register_std_error_symbols(registry: &SymbolRegistry) {
     registry.register(FfiFunction {
@@ -45,7 +45,7 @@ fn register_std_error_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_error_symbols,
     }
 }

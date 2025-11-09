@@ -12,10 +12,10 @@ use parking_lot::Condvar;
 use parking_lot::Mutex;
 
 #[cfg(feature = "task-runtime")]
-use crate::runtime::stdlib::runtime::task_metrics_clone;
-use crate::runtime::stdlib::runtime::{decrement_active_tasks, increment_active_tasks};
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
-use crate::runtime::task::{runtime, JoinHandle, TaskChannel, TaskRuntimeMetrics};
+use crate::stdlib::runtime::task_metrics_clone;
+use crate::stdlib::runtime::{decrement_active_tasks, increment_active_tasks};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::task::{JoinHandle, TaskChannel, TaskRuntimeMetrics, runtime};
 
 type HandleId = u64;
 
@@ -411,7 +411,7 @@ fn register_std_task_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_task_symbols,
     }
 }

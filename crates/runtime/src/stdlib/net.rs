@@ -9,7 +9,7 @@ use std::time::Duration;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 type HandleId = u64;
 static NEXT_HANDLE_ID: AtomicU64 = AtomicU64::new(1);
@@ -366,7 +366,7 @@ fn register_std_net_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_net_symbols,
     }
 }

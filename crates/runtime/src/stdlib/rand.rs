@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 // ============================================================================
 // Random Number Generator
@@ -101,11 +101,22 @@ pub extern "C" fn otter_std_rand_uuid() -> *mut c_char {
     // Format as UUID string
     let uuid_str = format!(
         "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-        uuid_bytes[0], uuid_bytes[1], uuid_bytes[2], uuid_bytes[3],
-        uuid_bytes[4], uuid_bytes[5],
-        uuid_bytes[6], uuid_bytes[7],
-        uuid_bytes[8], uuid_bytes[9],
-        uuid_bytes[10], uuid_bytes[11], uuid_bytes[12], uuid_bytes[13], uuid_bytes[14], uuid_bytes[15]
+        uuid_bytes[0],
+        uuid_bytes[1],
+        uuid_bytes[2],
+        uuid_bytes[3],
+        uuid_bytes[4],
+        uuid_bytes[5],
+        uuid_bytes[6],
+        uuid_bytes[7],
+        uuid_bytes[8],
+        uuid_bytes[9],
+        uuid_bytes[10],
+        uuid_bytes[11],
+        uuid_bytes[12],
+        uuid_bytes[13],
+        uuid_bytes[14],
+        uuid_bytes[15]
     );
 
     CString::new(uuid_str)
@@ -147,7 +158,7 @@ fn register_std_rand_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_rand_symbols,
     }
 }

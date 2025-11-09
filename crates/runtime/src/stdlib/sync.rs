@@ -7,7 +7,7 @@ use std::thread;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 thread_local! {
     static THREAD_LOCKS: RefCell<HashSet<u64>> = RefCell::new(HashSet::new());
@@ -289,7 +289,7 @@ fn register_std_sync_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_sync_symbols,
     }
 }

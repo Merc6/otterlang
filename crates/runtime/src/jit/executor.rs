@@ -1,4 +1,4 @@
-use crate::runtime::symbol_registry::SymbolRegistry;
+use crate::symbol_registry::SymbolRegistry;
 use anyhow::Result;
 use ast::nodes::Program;
 

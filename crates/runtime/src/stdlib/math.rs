@@ -1,4 +1,4 @@
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 #[no_mangle]
 pub extern "C" fn otter_std_math_abs(value: f64) -> f64 {
@@ -73,20 +73,12 @@ pub extern "C" fn otter_std_math_clamp(value: f64, min: f64, max: f64) -> f64 {
 
 #[no_mangle]
 pub extern "C" fn otter_std_math_min(a: f64, b: f64) -> f64 {
-    if a < b {
-        a
-    } else {
-        b
-    }
+    if a < b { a } else { b }
 }
 
 #[no_mangle]
 pub extern "C" fn otter_std_math_max(a: f64, b: f64) -> f64 {
-    if a > b {
-        a
-    } else {
-        b
-    }
+    if a > b { a } else { b }
 }
 
 #[no_mangle]
@@ -297,7 +289,7 @@ fn register_std_math_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_math_symbols,
     }
 }

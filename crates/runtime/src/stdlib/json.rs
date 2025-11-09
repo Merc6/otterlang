@@ -3,7 +3,7 @@ use std::os::raw::c_char;
 
 use serde_json::Value;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 fn read_c_string(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
@@ -86,7 +86,7 @@ fn register_std_json_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_json_symbols,
     }
 }

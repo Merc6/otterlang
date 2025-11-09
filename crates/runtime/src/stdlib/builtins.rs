@@ -1,12 +1,12 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 // ============================================================================
 // Built-in Collections Registry
@@ -1533,7 +1533,7 @@ fn register_builtin_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_builtin_symbols,
     }
 }

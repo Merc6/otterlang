@@ -9,7 +9,7 @@ pub use key::SpecializationKey;
 pub use specializer::Specializer;
 pub use type_tracker::TypeTracker;
 
-use crate::runtime::symbol_registry::FfiType;
+use crate::symbol_registry::FfiType;
 use ahash::AHasher;
 use std::hash::{Hash, Hasher};
 

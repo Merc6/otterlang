@@ -3,7 +3,7 @@
 use std::ptr::NonNull;
 use std::sync::atomic::Ordering;
 
-use crate::runtime::memory::object::{ObjectHeader, OtterObject};
+use crate::memory::object::{ObjectHeader, OtterObject};
 
 /// Reference-counted pointer to an OtterLang object
 pub struct RcOtter<T: OtterObject> {

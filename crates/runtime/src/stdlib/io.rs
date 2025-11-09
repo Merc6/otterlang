@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 // ============================================================================
 // Buffer Management
@@ -395,11 +395,7 @@ pub unsafe extern "C" fn otter_std_io_is_file(path: *const c_char) -> i32 {
     }
     let path_str = unsafe { CStr::from_ptr(path).to_str().unwrap_or("").to_string() };
     if let Ok(metadata) = fs::metadata(&path_str) {
-        if metadata.is_file() {
-            1
-        } else {
-            0
-        }
+        if metadata.is_file() { 1 } else { 0 }
     } else {
         0
     }
@@ -412,11 +408,7 @@ pub unsafe extern "C" fn otter_std_io_is_dir(path: *const c_char) -> i32 {
     }
     let path_str = unsafe { CStr::from_ptr(path).to_str().unwrap_or("").to_string() };
     if let Ok(metadata) = fs::metadata(&path_str) {
-        if metadata.is_dir() {
-            1
-        } else {
-            0
-        }
+        if metadata.is_dir() { 1 } else { 0 }
     } else {
         0
     }
@@ -594,7 +586,7 @@ fn register_std_io_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_io_symbols,
     }
 }

@@ -6,7 +6,7 @@ use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
-use crate::runtime::symbol_registry::SymbolRegistry;
+use crate::symbol_registry::SymbolRegistry;
 use ast::nodes::Program;
 use codegen::{CodegenOptLevel, CodegenOptions, build_shared_library};
 use typecheck::TypeChecker;

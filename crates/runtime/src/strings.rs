@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 /// Format a float value to string
 #[no_mangle]
@@ -145,7 +145,7 @@ fn register_string_functions(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_string_functions,
     }
 }

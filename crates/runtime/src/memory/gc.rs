@@ -1,13 +1,13 @@
 //! Garbage collection implementations
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::RwLock;
 
-use crate::runtime::memory::config::GcStrategy;
-use crate::runtime::memory::profiler::get_profiler;
+use crate::memory::config::GcStrategy;
+use crate::memory::profiler::get_profiler;
 
 /// Trait for garbage collection strategies
 pub trait GcStrategyTrait: Send + Sync {
@@ -238,11 +238,11 @@ impl Default for HybridGC {
 /// GC manager that handles different strategies
 pub struct GcManager {
     strategy: Arc<RwLock<Box<dyn GcStrategyTrait>>>,
-    config: Arc<RwLock<crate::runtime::memory::config::GcConfig>>,
+    config: Arc<RwLock<crate::memory::config::GcConfig>>,
 }
 
 impl GcManager {
-    pub fn new(config: crate::runtime::memory::config::GcConfig) -> Self {
+    pub fn new(config: crate::memory::config::GcConfig) -> Self {
         let strategy: Box<dyn GcStrategyTrait> = match config.strategy {
             GcStrategy::ReferenceCounting => Box::new(RcGC::new()),
             GcStrategy::MarkSweep => Box::new(MarkSweepGC::new()),
@@ -271,7 +271,7 @@ impl GcManager {
         self.config.write().strategy = strategy;
     }
 
-    pub fn config(&self) -> Arc<RwLock<crate::runtime::memory::config::GcConfig>> {
+    pub fn config(&self) -> Arc<RwLock<crate::memory::config::GcConfig>> {
         self.config.clone()
     }
 }
@@ -291,7 +291,7 @@ impl GcStrategyTrait for NoOpGC {
 
 /// Global GC manager
 static GLOBAL_GC: once_cell::sync::Lazy<GcManager> = once_cell::sync::Lazy::new(|| {
-    let config = crate::runtime::memory::config::GcConfig::from_env();
+    let config = crate::memory::config::GcConfig::from_env();
     GcManager::new(config)
 });
 

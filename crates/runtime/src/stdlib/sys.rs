@@ -1,6 +1,6 @@
 use sysinfo::System;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 #[no_mangle]
 pub extern "C" fn otter_std_sys_cores() -> i64 {
@@ -44,7 +44,7 @@ fn register_std_sys_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_sys_symbols,
     }
 }

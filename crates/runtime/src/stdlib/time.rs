@@ -13,7 +13,7 @@ use std::task::Waker;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
-use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
 #[cfg(feature = "task-runtime")]
 use crate::runtime::task::runtime;
@@ -323,7 +323,7 @@ fn register_std_time_symbols(registry: &SymbolRegistry) {
 }
 
 inventory::submit! {
-    crate::runtime::ffi::SymbolProvider {
+    crate::ffi::SymbolProvider {
         register: register_std_time_symbols,
     }
 }
