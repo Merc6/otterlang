@@ -2,21 +2,21 @@ use sysinfo::System;
 
 use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_sys_cores() -> i64 {
     let mut system = System::new_all();
     system.refresh_cpu();
     system.cpus().len() as i64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_sys_total_memory_bytes() -> i64 {
     let mut system = System::new_all();
     system.refresh_memory();
     (system.total_memory() * 1024) as i64
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_sys_available_memory_bytes() -> i64 {
     let mut system = System::new_all();
     system.refresh_memory();

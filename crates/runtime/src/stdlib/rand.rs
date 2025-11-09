@@ -31,13 +31,13 @@ fn lcg_next(seed: &mut u64) -> u64 {
     *seed
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_rand_seed(n: i64) {
     let mut state = RNG_STATE.lock();
     state.seed = n as u64;
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_rand_int(min: i64, max: i64) -> i64 {
     let mut state = RNG_STATE.lock();
     let next = lcg_next(&mut state.seed);
@@ -51,7 +51,7 @@ pub extern "C" fn otter_std_rand_int(min: i64, max: i64) -> i64 {
     result
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_rand_float() -> f64 {
     let mut state = RNG_STATE.lock();
     let next = lcg_next(&mut state.seed);
@@ -60,7 +60,7 @@ pub extern "C" fn otter_std_rand_float() -> f64 {
     (next as f64) / (u64::MAX as f64)
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_rand_bytes(n: i64) -> *mut c_char {
     if n <= 0 || n > 1024 {
         return std::ptr::null_mut();
@@ -83,7 +83,7 @@ pub extern "C" fn otter_std_rand_bytes(n: i64) -> *mut c_char {
         .unwrap_or(std::ptr::null_mut())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn otter_std_rand_uuid() -> *mut c_char {
     let mut state = RNG_STATE.lock();
 
