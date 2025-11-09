@@ -9,6 +9,7 @@ task-runtime = []
 [dependencies]
 ast.path = "../ast"
 cache.path = "../cache"
+common.path = "../common"
 # DOES NOT EXIST YET
 # codegen.path = "../codegen"
 # typecheck.path = "../typecheck"
