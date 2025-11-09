@@ -13,7 +13,7 @@ use crate::memory::config::GcStrategy;
 use crate::memory::gc::get_gc;
 use crate::memory::profiler::get_profiler;
 use crate::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
-use crate::version::VERSION;
+use common::VERSION;
 
 #[cfg(feature = "task-runtime")]
 use crate::runtime::task::{TaskMetricsSnapshot, TaskRuntimeMetrics, WorkerState};
