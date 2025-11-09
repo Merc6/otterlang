@@ -3,7 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
+use inkwell::AddressSpace;
+use inkwell::OptimizationLevel;
 use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context as LlvmContext;
@@ -14,8 +16,6 @@ use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType};
 use inkwell::values::{
     BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue,
 };
-use inkwell::AddressSpace;
-use inkwell::OptimizationLevel;
 
 use crate::codegen::target::TargetTriple;
 use crate::runtime::ffi::register_dynamic_exports;
@@ -295,8 +295,8 @@ pub fn build_executable(
 
     // Compile the runtime C file (target-specific)
     let runtime_o = output.with_extension("runtime.o");
-    let compiler = runtime_triple.c_compiler();
-    let mut cc = Command::new(&compiler);
+    let c_compiler = runtime_triple.c_compiler();
+    let mut cc = Command::new(&c_compiler);
 
     // Add target-specific compiler flags
     if runtime_triple.is_wasm() {
@@ -405,7 +405,7 @@ pub fn build_shared_library(
     let context = LlvmContext::create();
     let module = context.create_module("otter_jit");
     let builder = context.create_builder();
-    let registry = ffi::bootstrap_stdlib();
+    let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
     let mut compiler = Compiler::new(&context, module, builder, registry, expr_types);
 
@@ -486,8 +486,8 @@ pub fn build_shared_library(
 
     // Compile runtime C file (target-specific)
     let runtime_o = output.with_extension("runtime.o");
-    let compiler = runtime_triple.c_compiler();
-    let mut cc = Command::new(&compiler);
+    let c_compiler = runtime_triple.c_compiler();
+    let mut cc = Command::new(&c_compiler);
 
     // Add target-specific compiler flags
     if runtime_triple.is_wasm() {
@@ -1500,7 +1500,9 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                 } else {
                     // Variable doesn't exist - assignments require pre-declared variables
                     // This should not happen for properly declared variables
-                    bail!("cannot assign to undeclared variable `{name}`. Use `let {name} = ...` to declare it first.");
+                    bail!(
+                        "cannot assign to undeclared variable `{name}`. Use `let {name} = ...` to declare it first."
+                    );
                 };
 
                 let value = evaluated
@@ -1710,7 +1712,11 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
             Expr::Struct { name, fields } => {
                 // Struct instantiation - TODO: Full implementation requires struct type support
                 // For now, return an opaque handle (struct support is experimental)
-                bail!("struct instantiation is not yet fully implemented in codegen. Struct: {}, fields: {:?}", name, fields.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>())
+                bail!(
+                    "struct instantiation is not yet fully implemented in codegen. Struct: {}, fields: {:?}",
+                    name,
+                    fields.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>()
+                )
             }
         }
     }
@@ -2418,10 +2424,10 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                             }
                             _ => {
                                 bail!(
-                                        "argument type mismatch for `{symbol_name}`: expected {:?}, found {:?}",
-                                        expected_ty,
-                                        value.ty
-                                    );
+                                    "argument type mismatch for `{symbol_name}`: expected {:?}, found {:?}",
+                                    expected_ty,
+                                    value.ty
+                                );
                             }
                         }
                     }
