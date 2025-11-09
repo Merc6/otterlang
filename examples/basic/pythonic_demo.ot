@@ -1,8 +1,8 @@
-fn power(base: float, exp: float) -> float:
+def power(base: float, exp: float) -> float:
     if exp <= 0.0:
         return 1.0
     return base * power(base, exp - 1.0)
 
-fn main():
+def main():
     let result = power(2.0, 3.0)
 

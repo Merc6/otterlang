@@ -1,26 +1,24 @@
-use fmt
-
-fn divide(x: float, y: float) -> float:
+def divide(x: float, y: float) -> float:
     if y == 0:
         raise "Division by zero"
     return x / y
 
-fn safe_divide(x: float, y: float) -> float:
+def safe_divide(x: float, y: float) -> float:
     try:
         return divide(x, y)
     except Error as e:
-        fmt.println("Error occurred during division")
+        print("Error occurred during division")
         return 0
 
-fn main():
-    fmt.println("Exception Handling Basics")
-    fmt.println("========================")
+def main():
+    print("Exception Handling Basics")
+    print("========================")
     let result1 = safe_divide(10, 2)
-    fmt.println("Division by valid numbers works")
+    print("Division by valid numbers works")
     let result2 = safe_divide(10, 0)
-    fmt.println("Division by zero handled gracefully")
-    fmt.println("Testing bare raise:")
+    print("Division by zero handled gracefully")
+    print("Testing bare raise:")
     try:
         raise
     except Error:
-        fmt.println("Bare raise caught!")
+        print("Bare raise caught!")

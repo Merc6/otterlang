@@ -142,3 +142,7 @@ fn stringify(x: any) -> string:
         return stringify<map>(x)
     else:
         return "unknown"
+
+# Pythonic alias for stringify
+def str(x: any) -> string:
+    return stringify(x)

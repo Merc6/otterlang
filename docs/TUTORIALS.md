@@ -26,7 +26,7 @@ See the main [README](../README.md) for installation instructions.
 Create a file `hello.ot`:
 
 ```otter
-fn main:
+def main():
     print("Hello, World!")
 ```
 
@@ -41,7 +41,7 @@ otter run hello.ot
 ### Basic Types
 
 ```otter
-fn main:
+def main():
     # Integers
     x = 42
     
@@ -64,7 +64,7 @@ fn main:
 ### Type Annotations
 
 ```otter
-fn main:
+def main():
     x: int = 42
     name: string = "Otter"
 ```
@@ -74,23 +74,23 @@ fn main:
 ### Basic Functions
 
 ```otter
-fn greet(name: string) -> string:
+def greet(name: string) -> string:
     return f"Hello, {name}!"
 
-fn main:
+def main():
     message = greet("World")
-    println(message)
+    print(message)
 ```
 
 ### Multiple Parameters
 
 ```otter
-fn add(x: int, y: int) -> int:
+def add(x: int, y: int) -> int:
     return x + y
 
-fn main:
+def main():
     result = add(10, 20)
-    println(f"Result: {result}")
+    print(f"Result: {result}")
 ```
 
 ## Control Flow
@@ -98,19 +98,19 @@ fn main:
 ### If Statements
 
 ```otter
-fn check_age(age: int):
+def check_age(age: int):
     if age >= 18:
-        println("Adult")
+        print("Adult")
     elif age >= 13:
-        println("Teenager")
+        print("Teenager")
     else:
-        println("Child")
+        print("Child")
 ```
 
 ### Match Expressions
 
 ```otter
-fn day_name(day: int) -> string:
+def day_name(day: int) -> string:
     return match day:
         1 => "Monday"
         2 => "Tuesday"
@@ -121,16 +121,16 @@ fn day_name(day: int) -> string:
 ### Loops
 
 ```otter
-fn main:
+def main():
     # While loop
     mut i = 0
     while i < 10:
-        println(f"Count: {i}")
+        print(f"Count: {i}")
         i = i + 1
     
     # For loop
     for num in [1, 2, 3, 4, 5]:
-        println(f"Number: {num}")
+        print(f"Number: {num}")
 ```
 
 ## Collections
@@ -138,7 +138,7 @@ fn main:
 ### Arrays
 
 ```otter
-fn main:
+def main():
     numbers = [1, 2, 3, 4, 5]
     
     # Access elements
@@ -146,13 +146,13 @@ fn main:
     
     # Iterate
     for num in numbers:
-        println(f"{num}")
+        print(f"{num}")
 ```
 
 ### Dictionaries
 
 ```otter
-fn main:
+def main():
     person = {"name": "Otter", "age": 42}
     
     # Access values
@@ -165,14 +165,16 @@ fn main:
 ### Defining Structs
 
 ```otter
-struct Point:
+class Point:
     x: float
     y: float
 
-fn main:
+def main():
     p = Point{x: 1.0, y: 2.0}
-    println(f"Point: ({p.x}, {p.y})")
+    print(f"Point: ({p.x}, {p.y})")
 ```
+
+**Note:** `class` is a Pythonic alias for `struct`. Both keywords work identically.
 
 ### Type Aliases
 
@@ -180,7 +182,7 @@ fn main:
 type ID = int
 type Name = string
 
-fn create_user(id: ID, name: Name):
+def create_user(id: ID, name: Name):
     # ...
 ```
 
@@ -189,7 +191,7 @@ fn create_user(id: ID, name: Name):
 ### Spawning Tasks
 
 ```otter
-fn main:
+def main():
     task1 = spawn:
         return compute_something()
     
@@ -199,7 +201,7 @@ fn main:
     result1 = await task1
     result2 = await task2
     
-    println(f"Results: {result1}, {result2}")
+    print(f"Results: {result1}, {result2}")
 ```
 
 ## Error Handling
@@ -207,17 +209,17 @@ fn main:
 OtterLang uses `nil` for error handling:
 
 ```otter
-fn safe_divide(a: float, b: float) -> float | nil:
+def safe_divide(a: float, b: float) -> float | nil:
     if b == 0:
         return nil
     return a / b
 
-fn main:
+def main():
     result = safe_divide(10, 2)
     if result != nil:
-        println(f"Result: {result}")
+        print(f"Result: {result}")
     else:
-        println("Division by zero!")
+        print("Division by zero!")
 ```
 
 ## Advanced Topics
@@ -225,10 +227,10 @@ fn main:
 ### Generics
 
 ```otter
-fn first<T>(items: [T]) -> T:
+def first<T>(items: [T]) -> T:
     return items[0]
 
-fn main:
+def main():
     numbers = [1, 2, 3]
     first_num = first(numbers)
     
@@ -239,11 +241,22 @@ fn main:
 ### F-Strings
 
 ```otter
-fn main:
+def main():
     name = "Otter"
     age = 42
     message = f"Hello, {name}! You are {age} years old."
-    println(message)
+    print(message)
+```
+
+### String Conversion
+
+Convert values to strings using `str()` (Pythonic alias for `stringify()`):
+
+```otter
+def main():
+    num = 42
+    num_str = str(num)  # "42"
+    print(f"Number as string: {num_str}")
 ```
 
 For more information, see the [Language Specification](./LANGUAGE_SPEC.md) and [API Reference](./API_REFERENCE.md).

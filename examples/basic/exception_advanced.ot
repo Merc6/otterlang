@@ -1,6 +1,4 @@
-use fmt
-
-fn risky_operation(value: float) -> float:
+def risky_operation(value: float) -> float:
     if value < 0:
         raise "Negative values not allowed"
     if value == 0:
@@ -9,34 +7,34 @@ fn risky_operation(value: float) -> float:
         raise "Value too large"
     return value * 2
 
-fn main():
-    fmt.println("Advanced Exception Handling")
-    fmt.println("==========================")
+def main():
+    print("Advanced Exception Handling")
+    print("==========================")
 
-    fmt.println("Testing basic operations:")
+    print("Testing basic operations:")
     try:
         let result = risky_operation(5)
-        fmt.println("Success: 5 processed")
+        print("Success: 5 processed")
     except Error:
-        fmt.println("Failed on valid input")
+        print("Failed on valid input")
     finally:
-        fmt.println("Finished testing valid input")
+        print("Finished testing valid input")
 
     try:
         let result = risky_operation(-1)
-        fmt.println("Success: -1 processed")
+        print("Success: -1 processed")
     except Error:
-        fmt.println("Failed on negative input (expected)")
+        print("Failed on negative input (expected)")
     finally:
-        fmt.println("Finished testing negative input")
+        print("Finished testing negative input")
 
-    fmt.println("")
-    fmt.println("Nested exception handling:")
+    print("")
+    print("Nested exception handling:")
     try:
         try:
             raise "Inner error"
         except Error:
-            fmt.println("Caught inner error")
+            print("Caught inner error")
             raise "Outer error"
     except Error:
-        fmt.println("Caught outer error") 
+        print("Caught outer error") 

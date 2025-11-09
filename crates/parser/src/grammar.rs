@@ -962,7 +962,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     let function_ret_type = just(TokenKind::Arrow).ignore_then(type_parser()).or_not();
 
     // Support both 'def' (Pythonic) and 'fn' (legacy) for function definitions
-    let function_keyword = just(TokenKind::Def).or(just(TokenKind::Fn));
+    let function_keyword = just(TokenKind::Def); // fn is deprecated and maps to Def in tokenizer
 
     let function = pub_keyword
         .clone()
@@ -1069,7 +1069,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let struct_def = pub_keyword
         .clone()
-        .then(just(TokenKind::Struct))
+        .then(just(TokenKind::Struct).or(just(TokenKind::Class))) // Accept both struct and class
         .then(identifier_parser())
         .then(struct_generics)
         .then_ignore(just(TokenKind::Colon))

@@ -1,15 +1,13 @@
-use fmt
-
-fn stage_one(index: float) -> float:
+def stage_one(index: float) -> float:
     let base = index * 1.5 + 0.75
     return base * base
 
-fn stage_two(value: float) -> float:
+def stage_two(value: float) -> float:
     if value > 40.5:
         return value * 0.8
     return value + 4.25
 
-fn accumulate(index: float, limit: float, total: float) -> float:
+def accumulate(index: float, limit: float, total: float) -> float:
     if index >= limit:
         return total
     let stage1 = stage_one(index)
@@ -19,11 +17,11 @@ fn accumulate(index: float, limit: float, total: float) -> float:
     let next_index = index + step
     return accumulate(next_index, limit, next_total)
 
-fn run_pipeline(count: float) -> float:
+def run_pipeline(count: float) -> float:
     let zero = count - count
     return accumulate(zero, count, zero)
 
-fn main():
+def main():
     let items = 6.5
     let result = run_pipeline(items)
     let average = result / items

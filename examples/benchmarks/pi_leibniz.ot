@@ -1,4 +1,4 @@
-fn calculate_pi(iterations: float) -> float:
+def calculate_pi(iterations: float) -> float:
     let pi = 0.0
     let sign = 1.0
     let k = 0.0
@@ -10,7 +10,7 @@ fn calculate_pi(iterations: float) -> float:
     
     return pi * 4.0
 
-fn main():
+def main():
     let iterations = 100000000.0
     
     let _pi = calculate_pi(iterations)

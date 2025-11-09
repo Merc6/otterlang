@@ -1,8 +1,6 @@
-use fmt
-
-fn main():
+def main():
     # Test regular \n escape sequence (already supported)
-    fmt.println("Line 1\nLine 2\nLine 3")
+    print("Line 1\nLine 2\nLine 3")
     
     # Test multi-line string with actual newlines
     let multiline = """
@@ -10,12 +8,12 @@ This is a
 multi-line string
 with actual newlines!
 """
-    fmt.println(multiline)
+    print(multiline)
     
     # Test multi-line string with quotes inside
     let with_quotes = """
 This string has "quotes" inside
 and it works fine!
 """
-    fmt.println(with_quotes)
+    print(with_quotes)
 

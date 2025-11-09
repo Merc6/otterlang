@@ -108,6 +108,12 @@ Converts a dictionary or array to a JSON string.
 json_str = json.stringify({"key": "value"})
 ```
 
+**Note:** For general value-to-string conversion, use `str()` (Pythonic alias for `stringify()`):
+
+```otter
+num_str = str(42)  # "42"
+```
+
 ### `runtime`
 
 Runtime utilities.

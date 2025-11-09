@@ -759,7 +759,7 @@ impl LexerState {
 
         let value = unsafe { std::str::from_utf8_unchecked(&self.source[start..self.offset]) };
         let kind = match value {
-            "fn" => TokenKind::Fn,         // Legacy: kept for backward compatibility
+            "fn" => TokenKind::Def,        // Deprecated: use def instead (mapped to Def for compatibility)
             "def" => TokenKind::Def,       // Pythonic function definition
             "lambda" => TokenKind::Lambda, // Pythonic lambda expression
             "let" => TokenKind::Let,       // Optional: kept for backward compatibility
@@ -793,6 +793,7 @@ impl LexerState {
             "finally" => TokenKind::Finally,
             "raise" => TokenKind::Raise,
             "struct" => TokenKind::Struct,
+            "class" => TokenKind::Class,  // Pythonic alias for struct
             _ => TokenKind::Identifier(value.to_string()),
         };
 
