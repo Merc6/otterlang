@@ -641,9 +641,7 @@ impl TypeChecker {
                         | ast::nodes::BinaryOp::Div => {
                             // Numeric operations
                             match (&left_type, &right_type) {
-                                (TypeInfo::F64, _) | (_, TypeInfo::F64) => Ok(TypeInfo::F64),
-                                (TypeInfo::I64, _) | (_, TypeInfo::I64) => Ok(TypeInfo::I64),
-                                (TypeInfo::I32, TypeInfo::I32) => Ok(TypeInfo::I32),
+                                // String concatenation (must come before numeric patterns)
                                 (TypeInfo::Str, TypeInfo::Str)
                                     if matches!(op, ast::nodes::BinaryOp::Add) =>
                                 {
@@ -659,6 +657,10 @@ impl TypeChecker {
                                 {
                                     Ok(TypeInfo::Str)
                                 }
+                                // Numeric operations
+                                (TypeInfo::F64, _) | (_, TypeInfo::F64) => Ok(TypeInfo::F64),
+                                (TypeInfo::I64, _) | (_, TypeInfo::I64) => Ok(TypeInfo::I64),
+                                (TypeInfo::I32, TypeInfo::I32) => Ok(TypeInfo::I32),
                                 _ => {
                                     self.errors.push(TypeError::new(format!(
                                         "cannot apply {} to {} and {}",
