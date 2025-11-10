@@ -3,3 +3,5 @@
 //! # Note
 //!
 //! This API is unstable and subject to change.
+
+mod span;
