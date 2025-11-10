@@ -24,4 +24,12 @@ impl Span {
     /// If you're looking for a [`Span`] to represent *no* span, you should use
     /// the [`None`] variant of `Option<Span>`
     pub const DUMMY: Self = Self::new(0, 0);
+
+    pub const fn end(self) -> u32 {
+        self.end
+    }
+
+    pub const fn start(self) -> u32 {
+        self.start
+    }
 }
