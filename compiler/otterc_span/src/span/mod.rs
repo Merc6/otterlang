@@ -12,6 +12,7 @@ pub struct Span {
 
 impl Span {
     /// Creates a new instance of [`Span`]
+    #[inline]
     #[must_use = "This function is a constructor"]
     pub const fn new(start: u32, end: u32) -> Self {
         Self { end, start }
@@ -26,24 +27,28 @@ impl Span {
     pub const DUMMY: Self = Self::new(0, 0);
 
     /// Returns a copy of `self`'s end offset
+    #[inline]
     #[must_use = "doesn't do any in-place modifications"]
     pub const fn end(self) -> u32 {
         self.end
     }
 
     /// Returns a mutable reference to `self`'s end offset
+    #[inline]
     #[must_use = "doesn't do any in-place modifications"]
     pub const fn end_mut(&mut self) -> &mut u32 {
         &mut self.end
     }
 
     /// Returns a copy of `self`'s start offset
+    #[inline]
     #[must_use = "doesn't do any in-place modifications"]
     pub const fn start(self) -> u32 {
         self.start
     }
 
     /// Returns a mutable reference to `self`'s start offset
+    #[inline]
     #[must_use = "doesn't do any in-place modifications"]
     pub const fn start_mut(&mut self) -> &mut u32 {
         &mut self.start
