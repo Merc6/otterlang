@@ -73,3 +73,5 @@ wildcard_enum_match_arm.level = "allow"
 # pub_with_shorthand is allowable because rustfmt auto-formats certain
 # uses of pub without the shorthand to be shorthand.
 pub_with_shorthand.level = "allow"
+
+pub_use.level = "allow"
