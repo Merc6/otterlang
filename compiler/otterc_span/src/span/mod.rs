@@ -29,7 +29,15 @@ impl Span {
         self.end
     }
 
+    pub const fn end_mut(&mut self) -> &mut u32 {
+        &mut self.end
+    }
+
     pub const fn start(self) -> u32 {
         self.start
+    }
+
+    pub const fn start_mut(&mut self) -> &mut u32 {
+        &mut self.start
     }
 }
