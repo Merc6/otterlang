@@ -25,18 +25,22 @@ impl Span {
     /// the [`None`] variant of `Option<Span>`
     pub const DUMMY: Self = Self::new(0, 0);
 
+    /// Returns a copy of `self`'s end offset
     pub const fn end(self) -> u32 {
         self.end
     }
 
+    /// Returns a mutable reference to `self`'s end offset
     pub const fn end_mut(&mut self) -> &mut u32 {
         &mut self.end
     }
 
+    /// Returns a copy of `self`'s start offset
     pub const fn start(self) -> u32 {
         self.start
     }
 
+    /// Returns a mutable reference to `self`'s start offset
     pub const fn start_mut(&mut self) -> &mut u32 {
         &mut self.start
     }
