@@ -2,6 +2,7 @@
 
 /// A byte range, typically used for representing a slice in source-text
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(target_pointer_width = "64", repr(align(8)))]
 pub struct Span {
     /// the ending position of the range
     end: u32,
