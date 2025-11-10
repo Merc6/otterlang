@@ -9,3 +9,9 @@ pub struct Span {
     /// the starting position of the range
     start: u32,
 }
+
+impl Span {
+    pub const fn new(start: u32, end: u32) -> Self {
+        Self { end, start }
+    }
+}
