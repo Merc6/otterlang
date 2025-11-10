@@ -19,5 +19,9 @@ impl Span {
 }
 
 impl Span {
+    /// An unrepresentable [`Span`]
+    ///
+    /// If you're looking for a [`Span`] to represent *no* span, you should use
+    /// the [`None`] variant of `Option<Span>`
     pub const DUMMY: Self = Self::new(0, 0);
 }
