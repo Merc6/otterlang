@@ -1,7 +1,0 @@
-def sum_series(n: float) -> float:
-    if n <= 0.0:
-        return 0.0
-    return n + sum_series(n - 1.0)
-
-def main():
-    let result = sum_series(100.0)

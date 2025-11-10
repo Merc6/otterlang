@@ -32,8 +32,6 @@
         devShells.default =
           with pkgs;
           let
-            llvm = pkgs.llvmPackages_18;
-
             rust_toolchain = (rust-bin.nightly.latest.default.override {
               extensions = [
                 "rust-src"
@@ -44,17 +42,12 @@
           mkShell {
             buildInputs = [
               rust_toolchain
-              llvm.llvm
-              libffi
-              libxml2
             ]
             ++ lib.optionals (hasInfix "linux" system) [
               mold
             ];
 
             RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
-            LLVM_SYS_181_PREFIX="${llvm.llvm.dev}";
-            LLVM_SYS_180_PREFIX="${llvm.llvm.dev}";
 
             RUSTFLAGS =
               "-Zshare-generics=y" + lib.optionalString (hasInfix "linux" system) " -Clink-arg=-fuse-ld=mold";

@@ -1,9 +1,0 @@
-# Deprecated: use the io module instead
-fn print(msg: str):
-    io.print(msg)
-
-fn println(msg: str):
-    io.println(msg)
-
-fn eprintln(msg: str):
-    io.eprintln(msg)

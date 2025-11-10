@@ -1,83 +1,75 @@
 cargo-features = ["codegen-backend"]
 
-[package]
-name = "otterlang"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-repository = "https://github.com/jonathanmagambo/otterlang"
-readme = "README.md"
-description = "An experimental indentation-sensitive programming language with LLVM backend"
-keywords = ["language", "compiler", "programming-language", "llvm", "jit"]
-categories = ["development-tools", "programming"]
-authors = ["OtterLang Contributors"]
-
-[[bin]]
-name = "otterlang"
-path = "src/main.rs"
-
-[[bin]]
-name = "otter"
-path = "src/bin/otter.rs"
-
-[features]
-default = []
-task-runtime = []
-
-[dependencies]
-ast.path = "crates/ast"
-common.path = "crates/common"
-utils.path = "crates/utils"
-lexer.path = "crates/lexer"
-cache.path = "crates/cache"
-ffi.path = "crates/ffi"
-fmt.path = "crates/fmt"
-parser.path = "crates/parser"
-language.path = "crates/language"
-module.path = "crates/module"
-
-anyhow = "1.0"
-tempfile = "3.10"
-ariadne = "0.3"
-abi_stable = "0.11"
-ahash = "0.8"
-cargo_metadata = "0.18"
-chrono = { version = "0.4", features = ["serde"] }
-chumsky = "0.9"
-clap = { version = "4.5", features = ["derive"] }
-colored = "2.1"
-directories = "5.0"
-duct = "0.13"
-glob = "0.3"
-once_cell = "1.19"
-inventory = "0.3"
-indicatif = "0.17"
-inkwell = { version = "0.x", features = ["llvm18-1"] }
-libloading = "0.8"
-libm = "0.2"
-libc = "0.2"
-memmap2 = "0.9"
-parking_lot = "0.12"
-rayon = "1.8"
-crossbeam-channel = "0.5"
-crossbeam-deque = "0.8"
-crossbeam-utils = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_yaml = "0.9"
-sha1 = "0.10"
-sysinfo = "0.30"
-thiserror = "1.0"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-tower-lsp = "0.20"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
-
 [workspace]
 resolver = "3"
 members = [
-    "crates/*"
+    "compiler/*"
 ]
 
-[patch.crates-io]
-llvm-sys = { path = "vendor/llvm-sys" }
+[workspace.package]
+edition = "2024"
+license = "BSD 3-clause"
+
+
+# enable everything lint-wise, set priority to -1 for easy override
+[workspace.lints.clippy.pedantic]
+level = "warn"
+priority = -1
+
+[workspace.lints.clippy.nursery]
+level = "warn"
+priority = -1
+
+[workspace.lints.clippy.suspicious]
+level = "warn"
+priority = -1
+
+[workspace.lints.clippy.complexity]
+level = "warn"
+priority = -1
+
+[workspace.lints.clippy.perf]
+level = "warn"
+priority = -1
+
+[workspace.lints.clippy.restriction]
+level = "warn"
+priority = -1
+
+# allowlist
+[workspace.lints.clippy]
+
+# implicit_return is allowable because it is idiomatic
+implicit_return.level = "allow"
+
+# missing_trait_methods is allowable because otherwise it forces the
+# programmer to rewrite already written trait methods, which is
+# unnecessary and time-consumings
+missing_trait_methods.level = "allow"
+
+# float_arithmetic is allowable because we are not developing on platforms
+# that cannot support it
+float_arithmetic.level = "allow"
+
+# as_conversions is allowable because we already check all other as-
+# conversions, this lint activates regardless of if the proper checks
+# are in place
+as_conversions.level = "allow"
+
+# blanket_clippy_restriction_lints is allowable because we are actively
+# disabling restriction lints that are unnecessary
+blanket_clippy_restriction_lints.level = "allow"
+
+# separated_literal_suffix is allowable because it is purely stylistic
+separated_literal_suffix.level = "allow"
+
+# mod_module_files is allowable because it is stylistic
+mod_module_files.level = "allow"
+
+# wildcard_enum_match_arm is allowable because it disables the use of a
+# wildcard pattern, making code less concise and more unleadable
+wildcard_enum_match_arm.level = "allow"
+
+# pub_with_shorthand is allowable because rustfmt auto-formats certain
+# uses of pub without the shorthand to be shorthand.
+pub_with_shorthand.level = "allow"
