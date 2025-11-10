@@ -78,4 +78,9 @@ pub_with_shorthand.level = "allow"
 # things, only restriction for this project is pub use with glob
 pub_use.level = "allow"
 
+# multiple_inherent_impl is allowable because we enforce that items - unless
+# explicitly said otherwise - must be sorted alphabetically; in our case, it
+# also makes sense that constructors are at the top of the impl-s for a type,
+# so it makes sense to separate - at least - constructors from the rest of the
+# impl-s.
 multiple_inherent_impl.level = "allow"
