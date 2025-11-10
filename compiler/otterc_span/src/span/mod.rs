@@ -11,6 +11,8 @@ pub struct Span {
 }
 
 impl Span {
+    /// Creates a new instance of [`Span`]
+    #[must_use = "This function is a constructor"]
     pub const fn new(start: u32, end: u32) -> Self {
         Self { end, start }
     }
