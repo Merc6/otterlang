@@ -140,154 +140,25 @@ cargo +nightly test --release
 
 ## Language Features
 
-### Syntax
+OtterLang features a clean, indentation-based syntax with modern language features:
 
-Clean indentation-based syntax with modern features:
+- **Pythonic syntax** - `def` for functions, `class` for structs, `print()` for output
+- **Type system** - Static typing with type inference
+- **Enums and pattern matching** - Tagged unions with `match` expressions
+- **Exception handling** - `try/except/finally` blocks with zero-cost abstractions
+- **Concurrency** - `spawn` and `await` for async operations
+- **Transparent Rust FFI** - Use any Rust crate without manual bindings
 
-```otter
-use math
-
-def greet(name: str) -> str:
-    return f"Hello, {name}!"
-
-class Point:
-    x: float
-    y: float
-
-    def distance(self) -> float:
-        return math.sqrt(self.x * self.x + self.y * self.y)
-
-def main():
-    let message = greet("World")
-    print(message)
-
-    let p = Point(x=3.0, y=4.0)
-    let dist = p.distance()
-    print(f"Point: ({p.x}, {p.y}), distance: {dist}")
-
-    if len(message) > 10:
-        print("Long message")
-
-    for i in 0..10:
-        print(f"{i}")
-```
-
-`str()` is now a builtin for general conversions (the old `stringify()` helper remains as a compatibility alias).
-
-### Enums
-
-Use `enum` to define tagged unions with typed payloads. Variants accept tuple-style data, and you can destructure them with the existing `match` expression:
-
-```otter
-pub enum Option<T>:
-    Some: (T)
-    None
-
-use core
-
-def divide(x: float, y: float) -> Result<float, str>:
-    if y == 0:
-        return Result.Err("division by zero")
-    return Result.Ok(x / y)
-
-def main():
-    let outcome = divide(10.0, 2.0)
-    let value = match outcome:
-        case Result.Ok(val):
-            val
-        case Result.Err(msg):
-            print(f"error: {msg}")
-            0.0
-
-    let wrapped = Option.Some(value)
-    match wrapped:
-        case Option.Some(v):
-            print(f"value: {v}")
-        case Option.None:
-            print("no value")
-```
-
-The standard library now ships `Option` and `Result` as regular enums in `core`, so you can `use core` (or explicitly `use otter:core`) to pull them in instead of relying on hard-coded compiler types.
+For complete syntax and language details, see the [Language Specification](docs/LANGUAGE_SPEC.md).
 
 ### Transparent Rust FFI
 
-Automatically use any Rust crate without manual configuration:
-
-```otter
-use rust:rand
-
-def main():
-    let random = rand.random_f64()
-    print(f"Random: {random}")
-```
-
-**Key advantages:**
-- No manual bindings needed
-- Automatic API extraction via rustdoc (requires Rust nightly)
-- Memory management handled automatically
-- Async/await support for Rust Futures
-- Type checking integrated
-
-See [docs/FFI_TRANSPARENT.md](docs/FFI_TRANSPARENT.md) for details.
+Automatically use any Rust crate without manual configuration. No manual bindings needed - just `use rust:crate_name` and start using it. See [docs/FFI_TRANSPARENT.md](docs/FFI_TRANSPARENT.md) for details.
 
 ### Standard Library
 
-Built-in modules (import without the `otter:` prefix):
-- `fmt` - Formatting and printing helpers
-- `math` - Mathematical functions
-- `io` - File I/O
-- `time` - Time utilities
-- `task` - Task-based concurrency
-- `rand` - Random numbers
-- `json` - JSON parsing
-- `net` - Networking
-- `http` - HTTP client/server
+Built-in modules include `core` (Option, Result), `math`, `io`, `time`, and more. See the [API Reference](docs/API_REFERENCE.md) for complete documentation.
 
-You can import multiple modules at once using commas, and the old `otter:` prefix remains available when you want to be explicit:
-
-```otter
-use fmt, math, time
-use rust:rand
-use otter:json  # still supported
-```
-
-### Exception Handling
-
-Modern exception handling with zero-cost success path:
-
-```otter
-def divide(x: int, y: int) -> int:
-    if y == 0:
-        raise "Division by zero"
-    return x / y
-
-def safe_operation():
-    try:
-        let result = divide(10, 0)
-        print("Result: " + str(result))
-    except Error as e:
-        print("Caught error: " + str(e))
-    else:
-        print("No errors occurred")
-    finally:
-        print("Cleanup always runs")
-
-def nested_exceptions():
-    try:
-        try:
-            raise "Inner error"
-        except Error:
-            print("Handled inner error")
-            raise "Outer error"
-    except Error:
-        print("Handled outer error")
-```
-
-**Features:**
-- `try/except/else/finally` blocks
-- Exception propagation with automatic cleanup
-- Zero-cost abstractions (no overhead on success path)
-- Type-safe error handling at compile time
 
 ## CLI Commands
 
@@ -374,44 +245,12 @@ The generated `.wasm` file can be run in any WebAssembly runtime (Node.js, brows
 - `examples/ffi/ffi_rand_demo.ot` - Random number generation
 - `examples/ffi/ffi_rand_advanced.ot` - Advanced FFI usage
 
-### Unit Testing (Examples)
+## Documentation
 
-Below are illustrative examples of how unit tests will look in OtterLang. A built-in `otter test` runner is planned (see `roadmap.md`).
-
-```otter
-class User:
-    id: int
-    name: str
-
-def make_users() -> list<User>:
-    return [User(id=1, name="Ana"), User(id=2, name="Bo")] 
-
-def to_map(users: list<User>) -> dict<int, str>:
-    let m = { }
-    for u in users:
-        m[u.id] = u.name
-    return m
-
-def test_user_list_basic():
-    let xs = make_users()
-    assert len(xs) == 2
-    assert xs[0].name == "Ana"
-
-def test_dict_building():
-    let m = to_map(make_users())
-    assert m[1] == "Ana"
-    assert m.get(3, default="none") == "none"
-
-def test_nested_structs_and_lists():
-    class Team:
-        name: str
-        members: list<User>
-
-    let team = Team(name="core", members=make_users())
-    assert team.members[1].id == 2
-```
-
-The test runner will discover functions prefixed with `test_` and report pass/fail results with spans and diffs.
+- **[Language Specification](docs/LANGUAGE_SPEC.md)** - Complete language reference
+- **[Tutorials](docs/TUTORIALS.md)** - Step-by-step guides
+- **[API Reference](docs/API_REFERENCE.md)** - Standard library documentation
+- **[FFI Guide](docs/FFI_TRANSPARENT.md)** - Using Rust crates from OtterLang
 
 ## Status
 

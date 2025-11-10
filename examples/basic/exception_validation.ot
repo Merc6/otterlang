@@ -16,7 +16,7 @@ def validate_user(name: str, email: str, age_str: str) -> str:
     let age = validate_age(age_str)
     return f"{name} validated"
 
-def process_users():
+def process_users() -> List:
     let valid_users = []
     try:
         let result = validate_user("Alice", "alice@example.com", "25")

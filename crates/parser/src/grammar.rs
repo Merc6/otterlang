@@ -268,8 +268,18 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKin
 fn expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKind>> {
     recursive(|expr| {
         let lambda_param = identifier_parser()
-            .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not())
-            .then(just(TokenKind::Equals).ignore_then(expr.clone()).or_not())
+            .then(
+                choice((
+                    just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
+                    empty().to(None),
+                ))
+            )
+            .then(
+                choice((
+                    just(TokenKind::Equals).ignore_then(expr.clone()).map(Some),
+                    empty().to(None),
+                ))
+            )
             .map(|((name, ty), default)| Param::new(name, ty, default));
 
         let lambda_params = lambda_param
@@ -959,8 +969,18 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .map(Block::new);
 
     let function_param = identifier_parser()
-        .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not())
-        .then(just(TokenKind::Equals).ignore_then(expr.clone()).or_not())
+        .then(
+            choice((
+                just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
+                empty().to(None),
+            ))
+        )
+        .then(
+            choice((
+                just(TokenKind::Equals).ignore_then(expr.clone()).map(Some),
+                empty().to(None),
+            ))
+        )
         .map(|((name, ty), default)| Param::new(name, ty, default));
 
     let function_params = function_param
@@ -1051,8 +1071,18 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     // Method definition (def method(self, ...) -> ReturnType: ...)
     // Recreate parsers for method definition
     let method_function_param = identifier_parser()
-        .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not())
-        .then(just(TokenKind::Equals).ignore_then(expr.clone()).or_not())
+        .then(
+            choice((
+                just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
+                empty().to(None),
+            ))
+        )
+        .then(
+            choice((
+                just(TokenKind::Equals).ignore_then(expr.clone()).map(Some),
+                empty().to(None),
+            ))
+        )
         .map(|((name, ty), default)| Param::new(name, ty, default));
 
     let method_function_params = method_function_param

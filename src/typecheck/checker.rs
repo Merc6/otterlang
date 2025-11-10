@@ -81,6 +81,16 @@ impl TypeChecker {
             },
         );
 
+        // println function
+        context.functions.insert(
+            "println".to_string(),
+            TypeInfo::Function {
+                params: vec![TypeInfo::Str],
+                param_defaults: vec![false],
+                return_type: Box::new(TypeInfo::Unit),
+            },
+        );
+
         context.functions.insert(
             "str".to_string(),
             TypeInfo::Function {
@@ -90,11 +100,11 @@ impl TypeChecker {
             },
         );
 
-        // len functions
+        // len functions (accepts string, list, map, etc.)
         context.functions.insert(
             "len".to_string(),
             TypeInfo::Function {
-                params: vec![TypeInfo::Str],
+                params: vec![TypeInfo::Unknown],
                 param_defaults: vec![false],
                 return_type: Box::new(TypeInfo::I64),
             },
