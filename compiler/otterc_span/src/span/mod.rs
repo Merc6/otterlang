@@ -17,3 +17,7 @@ impl Span {
         Self { end, start }
     }
 }
+
+impl Span {
+    pub const DUMMY: Self = Self::new(0, 0);
+}
