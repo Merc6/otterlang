@@ -932,6 +932,7 @@ impl TypeChecker {
                 var,
                 iterable,
                 body,
+                ..
             } => {
                 let iter_type = self.infer_expr_type(iterable)?;
                 let element_type = match &iter_type {

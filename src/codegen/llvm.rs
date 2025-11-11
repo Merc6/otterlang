@@ -1094,6 +1094,7 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                 name,
                 expr,
                 public: _,
+                ..
             } => {
                 let evaluated = self.eval_expr(expr, ctx)?;
                 if evaluated.ty == OtterType::Unit {
@@ -1204,6 +1205,7 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                 var,
                 iterable,
                 body,
+                ..
             } => {
                 if let Expr::Range { start, end } = iterable {
                     let start_val = self.eval_expr(start, ctx)?;

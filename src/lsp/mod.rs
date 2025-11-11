@@ -8,14 +8,36 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use crate::runtime::symbol_registry::SymbolRegistry;
 use crate::typecheck::{TypeChecker, TypeError};
+use ast::nodes::{Program, Statement};
 use common::Span;
 use lexer::{tokenize, LexerError};
 use parser::parse;
 use utils::errors::{Diagnostic as OtterDiagnostic, DiagnosticSeverity as OtterDiagSeverity};
 
+/// Symbol table mapping variable names to their definition locations
+#[derive(Debug, Clone, Default)]
+struct SymbolTable {
+    /// Maps variable name to its definition span
+    variables: HashMap<String, Span>,
+    /// Maps function parameter names to their definition spans
+    parameters: HashMap<String, Span>,
+}
+
+impl SymbolTable {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Find the definition span for a variable name
+    fn find_definition(&self, name: &str) -> Option<&Span> {
+        self.parameters.get(name).or_else(|| self.variables.get(name))
+    }
+}
+
 #[derive(Default, Debug)]
 struct DocumentStore {
     documents: HashMap<Url, String>,
+    symbol_tables: HashMap<Url, SymbolTable>,
 }
 
 #[derive(Debug)]
@@ -58,7 +80,14 @@ impl Backend {
         };
 
         if let Some(text) = text {
-            let diagnostics = compute_lsp_diagnostics(&text);
+            let (diagnostics, symbol_table) = compute_lsp_diagnostics_and_symbols(&text);
+            
+            // Store the symbol table
+            {
+                let mut state = self.state.write().await;
+                state.symbol_tables.insert(uri.clone(), symbol_table);
+            }
+            
             let _ = self
                 .client
                 .publish_diagnostics(uri, diagnostics, None)
@@ -82,6 +111,7 @@ impl LanguageServer for Backend {
                 )),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 completion_provider: Some(CompletionOptions::default()),
+                definition_provider: Some(OneOf::Left(true)),
                 ..Default::default()
             },
             ..Default::default()
@@ -153,6 +183,35 @@ impl LanguageServer for Backend {
 
         Ok(None)
     }
+
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
+
+        let (text, symbol_table) = {
+            let state = self.state.read().await;
+            let text = state.documents.get(&uri).cloned();
+            let symbol_table = state.symbol_tables.get(&uri).cloned();
+            (text, symbol_table)
+        };
+
+        if let (Some(text), Some(symbol_table)) = (text, symbol_table) {
+            if let Some(var_name) = word_at_position(&text, position) {
+                if let Some(span) = symbol_table.find_definition(&var_name) {
+                    let range = span_to_range(*span, &text);
+                    return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                        uri: uri.clone(),
+                        range,
+                    })));
+                }
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 /// Run a standard I/O LSP server using the backend above.
@@ -163,27 +222,114 @@ pub async fn run_stdio_server() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-fn compute_lsp_diagnostics(text: &str) -> Vec<Diagnostic> {
+/// Build a symbol table from a parsed program
+fn build_symbol_table(program: &Program) -> SymbolTable {
+    let mut table = SymbolTable::new();
+    build_symbol_table_from_statements(&program.statements, &mut table);
+    table
+}
+
+/// Recursively extract variable definitions from statements
+fn build_symbol_table_from_statements(statements: &[Statement], table: &mut SymbolTable) {
+    for stmt in statements {
+        match stmt {
+            Statement::Let { name, span, .. } => {
+                if let Some(span) = span {
+                    table.variables.insert(name.clone(), *span);
+                }
+            }
+            Statement::Function(func) => {
+                for param in &func.params {
+                    if let Some(span) = param.span {
+                        table.parameters.insert(param.name.clone(), span);
+                    }
+                }
+                build_symbol_table_from_statements(&func.body.statements, table);
+            }
+            Statement::If {
+                then_block,
+                elif_blocks,
+                else_block,
+                ..
+            } => {
+                build_symbol_table_from_statements(&then_block.statements, table);
+                for (_, block) in elif_blocks {
+                    build_symbol_table_from_statements(&block.statements, table);
+                }
+                if let Some(block) = else_block {
+                    build_symbol_table_from_statements(&block.statements, table);
+                }
+            }
+            Statement::For { var, var_span, body, .. } => {
+                if let Some(span) = var_span {
+                    table.variables.insert(var.clone(), *span);
+                }
+                build_symbol_table_from_statements(&body.statements, table);
+            }
+            Statement::While { body, .. } => {
+                build_symbol_table_from_statements(&body.statements, table);
+            }
+            Statement::Try {
+                body,
+                handlers,
+                else_block,
+                finally_block,
+                ..
+            } => {
+                build_symbol_table_from_statements(&body.statements, table);
+                for handler in handlers {
+                    build_symbol_table_from_statements(&handler.body.statements, table);
+                }
+                if let Some(block) = else_block {
+                    build_symbol_table_from_statements(&block.statements, table);
+                }
+                if let Some(block) = finally_block {
+                    build_symbol_table_from_statements(&block.statements, table);
+                }
+            }
+            Statement::Block(block) => {
+                build_symbol_table_from_statements(&block.statements, table);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Compute diagnostics and build symbol table from source text
+fn compute_lsp_diagnostics_and_symbols(text: &str) -> (Vec<Diagnostic>, SymbolTable) {
     let source_id = "lsp";
     match tokenize(text) {
         Ok(tokens) => match parse(&tokens) {
             Ok(program) => {
-                let mut checker = TypeChecker::new().with_registry(SymbolRegistry::global());
-                if checker.check_program(&program).is_err() {
-                    checker.errors().iter().map(type_error_to_lsp).collect()
-                } else {
-                    Vec::new()
-                }
+                // Build symbol table from the parsed program
+                let symbol_table = build_symbol_table(&program);
+                
+                let diagnostics = {
+                    let mut checker = TypeChecker::new().with_registry(SymbolRegistry::global());
+                    if checker.check_program(&program).is_err() {
+                        checker.errors().iter().map(type_error_to_lsp).collect()
+                    } else {
+                        Vec::new()
+                    }
+                };
+                
+                (diagnostics, symbol_table)
             }
-            Err(errors) => errors
-                .into_iter()
-                .map(|err| otter_diag_to_lsp(&err.to_diagnostic(source_id), text))
-                .collect(),
+            Err(errors) => {
+                let diagnostics = errors
+                    .into_iter()
+                    .map(|err| otter_diag_to_lsp(&err.to_diagnostic(source_id), text))
+                    .collect();
+                (diagnostics, SymbolTable::new())
+            }
         },
-        Err(errors) => errors
-            .into_iter()
-            .map(|err| otter_diag_to_lsp(&lexer_error_to_diag(source_id, &err), text))
-            .collect(),
+        Err(errors) => {
+            let diagnostics = errors
+                .into_iter()
+                .map(|err| otter_diag_to_lsp(&lexer_error_to_diag(source_id, &err), text))
+                .collect();
+            (diagnostics, SymbolTable::new())
+        }
     }
 }
 
@@ -311,4 +457,82 @@ fn offset_to_position(text: &str, offset: usize) -> Position {
         counted += ch.len_utf8();
     }
     Position { line, character }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_symbol_table() {
+        let test_code = r#"
+let x = 10
+let y = 20
+
+def add(a, b):
+    let result = a + b
+    return result
+
+let sum = add(x, y)
+
+for i in [1, 2, 3]:
+    let doubled = i * 2
+    print(doubled)
+"#;
+
+        match tokenize(test_code) {
+            Ok(tokens) => match parse(&tokens) {
+                Ok(program) => {
+                    let symbol_table = build_symbol_table(&program);
+                    
+                    assert!(symbol_table.variables.contains_key("x"), "Variable 'x' should be in symbol table");
+                    assert!(symbol_table.variables.contains_key("y"), "Variable 'y' should be in symbol table");
+                    assert!(symbol_table.variables.contains_key("result"), "Variable 'result' should be in symbol table");
+                    assert!(symbol_table.variables.contains_key("sum"), "Variable 'sum' should be in symbol table");
+                    assert!(symbol_table.variables.contains_key("doubled"), "Variable 'doubled' should be in symbol table");
+                    assert!(symbol_table.parameters.contains_key("a"), "Parameter 'a' should be in symbol table");
+                    assert!(symbol_table.parameters.contains_key("b"), "Parameter 'b' should be in symbol table");
+                    assert!(symbol_table.variables.contains_key("i"), "Loop variable 'i' should be in symbol table");
+                    
+                    println!("✓ All symbol table tests passed!");
+                    println!("  Variables: {:?}", symbol_table.variables.keys().collect::<Vec<_>>());
+                    println!("  Parameters: {:?}", symbol_table.parameters.keys().collect::<Vec<_>>());
+                }
+                Err(errors) => {
+                    panic!("Parsing failed: {:?}", errors);
+                }
+            },
+            Err(errors) => {
+                panic!("Tokenization failed: {:?}", errors);
+            }
+        }
+    }
+
+    #[test]
+    fn test_find_definition() {
+        let test_code = "let x = 10\nlet y = x + 5\n";
+        
+        match tokenize(test_code) {
+            Ok(tokens) => match parse(&tokens) {
+                Ok(program) => {
+                    let symbol_table = build_symbol_table(&program);
+                    
+                    let x_span = symbol_table.find_definition("x");
+                    assert!(x_span.is_some(), "Should find definition for 'x'");
+                    
+                    let y_span = symbol_table.find_definition("y");
+                    assert!(y_span.is_some(), "Should find definition for 'y'");
+                    
+                    let z_span = symbol_table.find_definition("z");
+                    assert!(z_span.is_none(), "Should not find definition for 'z'");
+                }
+                Err(errors) => {
+                    panic!("Parsing failed: {:?}", errors);
+                }
+            },
+            Err(errors) => {
+                panic!("Tokenization failed: {:?}", errors);
+            }
+        }
+    }
 }

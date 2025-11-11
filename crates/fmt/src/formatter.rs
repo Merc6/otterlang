@@ -28,7 +28,7 @@ impl Formatter {
 
     fn format_statement(&self, stmt: &Statement, indent: usize) -> String {
         match stmt {
-            Statement::Let { name, expr, public } => {
+            Statement::Let { name, expr, public, .. } => {
                 let pub_str = if *public { "pub " } else { "" };
                 format!(
                     "{}{}let {} = {}\n",
@@ -57,6 +57,7 @@ impl Formatter {
                 var,
                 iterable,
                 body,
+                ..
             } => {
                 format!(
                     "{}for {} in {}:\n{}",

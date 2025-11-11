@@ -268,6 +268,7 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKin
 fn expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKind>> {
     recursive(|expr| {
         let lambda_param = identifier_parser()
+            .map_with_span(|name, span| (name, span))
             .then(
                 choice((
                     just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
@@ -280,7 +281,9 @@ fn expr_parser() -> impl Parser<TokenKind, Expr, Error = Simple<TokenKind>> {
                     empty().to(None),
                 ))
             )
-            .map(|((name, ty), default)| Param::new(name, ty, default));
+            .map(|(((name, name_span), ty), default)| {
+                Param::new(name, ty, default).with_span(Some(Span::new(name_span.start, name_span.end)))
+            });
 
         let lambda_params = lambda_param
             .separated_by(just(TokenKind::Comma))
@@ -709,13 +712,14 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     let let_stmt = pub_keyword
         .clone()
         .then(just(TokenKind::Let).or_not())
-        .then(identifier_parser())
+        .then(identifier_parser().map_with_span(|name, span| (name, span)))
         .then_ignore(just(TokenKind::Equals))
         .then(expr.clone())
-        .map(|(((pub_kw, _let), name), expr)| Statement::Let {
+        .map(|(((pub_kw, _let), (name, name_span)), expr)| Statement::Let {
             name,
             expr,
             public: pub_kw.is_some(),
+            span: Some(Span::new(name_span.start, name_span.end)),
         });
 
     // Simple assignments (=) are handled by let_stmt (declaration or reassignment)
@@ -858,7 +862,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             );
 
         let for_stmt = just(TokenKind::For)
-            .ignore_then(identifier_parser())
+            .ignore_then(identifier_parser().map_with_span(|var, span| (var, span)))
             .then_ignore(just(TokenKind::In))
             .then(expr.clone())
             .then_ignore(just(TokenKind::Colon))
@@ -870,10 +874,11 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
                     .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
                     .map(Block::new),
             )
-            .map(|((var, iterable), body)| Statement::For {
+            .map(|(((var, var_span), iterable), body)| Statement::For {
                 var,
                 iterable,
                 body,
+                var_span: Some(Span::new(var_span.start, var_span.end)),
             });
 
         let while_stmt = just(TokenKind::While)
@@ -990,6 +995,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .map(Block::new);
 
     let function_param = identifier_parser()
+        .map_with_span(|name, span| (name, span))
         .then(
             choice((
                 just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
@@ -1002,7 +1008,9 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
                 empty().to(None),
             ))
         )
-        .map(|((name, ty), default)| Param::new(name, ty, default));
+        .map(|(((name, name_span), ty), default)| {
+            Param::new(name, ty, default).with_span(Some(Span::new(name_span.start, name_span.end)))
+        });
 
     let function_params = function_param
         .separated_by(just(TokenKind::Comma))
@@ -1089,6 +1097,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     // Method definition (def method(self, ...) -> ReturnType: ...)
     // Recreate parsers for method definition
     let method_function_param = identifier_parser()
+        .map_with_span(|name, span| (name, span))
         .then(
             choice((
                 just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
@@ -1101,7 +1110,9 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
                 empty().to(None),
             ))
         )
-        .map(|((name, ty), default)| Param::new(name, ty, default));
+        .map(|(((name, name_span), ty), default)| {
+            Param::new(name, ty, default).with_span(Some(Span::new(name_span.start, name_span.end)))
+        });
 
     let method_function_params = method_function_param
         .separated_by(just(TokenKind::Comma))
@@ -1126,7 +1137,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             if method_params.is_empty() || method_params[0].name != "self" {
                 // Add self parameter at the beginning
                 let self_type = Type::Simple("Self".to_string());
-                let self_param = Param::new("self".to_string(), Some(self_type), None);
+                let self_param = Param::new("self".to_string(), Some(self_type), None).with_span(None);
                 method_params.insert(0, self_param);
             }
             Function::new(name, method_params, ret_ty, body)

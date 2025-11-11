@@ -1,5 +1,7 @@
 use std::hash::{Hash, Hasher};
 
+use common::Span;
+
 #[derive(Debug, Clone)]
 pub struct Program {
     pub statements: Vec<Statement>,
@@ -79,6 +81,7 @@ pub struct Param {
     pub name: String,
     pub ty: Option<Type>,
     pub default: Option<Expr>,
+    pub span: Option<Span>,
 }
 
 impl Param {
@@ -87,7 +90,13 @@ impl Param {
             name: name.into(),
             ty,
             default,
+            span: None,
         }
+    }
+
+    pub fn with_span(mut self, span: Option<Span>) -> Self {
+        self.span = span;
+        self
     }
 }
 
@@ -139,6 +148,7 @@ pub enum Statement {
         name: String,
         expr: Expr,
         public: bool,
+        span: Option<Span>,
     },
     Assignment {
         name: String,
@@ -156,6 +166,7 @@ pub enum Statement {
         var: String,
         iterable: Expr,
         body: Block,
+        var_span: Option<Span>,
     },
     While {
         cond: Expr,
