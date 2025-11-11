@@ -12,6 +12,20 @@
 [![Build Status](https://github.com/jonathanmagambo/otterlang/workflows/CI/badge.svg)](https://github.com/jonathanmagambo/otterlang/actions)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/y3b4QuvyFk)
 
+<h3 align="center">
+  <a href="docs/LANGUAGE_SPEC.md"><b>Docs</b></a>
+  &nbsp;&#183;&nbsp;
+  <a href="docs/EXAMPLES.md"><b>Examples</b></a>
+  &nbsp;&#183;&nbsp;
+  <a href="docs/INSTALLATION.md"><b>Installation</b></a>
+  &nbsp;&#183;&nbsp;
+  <a href="https://discord.gg/y3b4QuvyFk" target="_blank">Discord</a>
+  &nbsp;&#183;&nbsp;
+  <a href="docs/FFI_TRANSPARENT.md"><b>FFI Guide</b></a>
+  &nbsp;&#183;&nbsp;
+  <a href="CONTRIBUTING.md"><b>Contributing</b></a>
+</h3>
+
 An indentation-sensitive programming language with an LLVM backend. OtterLang compiles to native binaries with a focus on simplicity and performance.
 
 ## Quick Start
