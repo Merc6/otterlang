@@ -1,3 +1,4 @@
+use anyhow::{Result, bail};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::task::Waker;
@@ -16,6 +17,12 @@ struct ChannelInner<T> {
     metrics: Option<Arc<TaskRuntimeMetrics>>,
     closed: parking_lot::Mutex<bool>,
     condvar: parking_lot::Condvar,
+}
+
+impl<T> Default for TaskChannel<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T> TaskChannel<T> {
@@ -210,11 +217,12 @@ pub fn select2<T1, T2>(
     ch1: &TaskChannel<T1>,
     ch2: &TaskChannel<T2>,
     waker: &Waker,
-) -> Result<SelectResult<T1, T2>, ()> {
+) -> Result<SelectResult<T1, T2>> {
     // Try to receive from both channels immediately
     if let Some(value1) = ch1.try_recv() {
         return Ok(SelectResult::First(value1));
     }
+
     if let Some(value2) = ch2.try_recv() {
         return Ok(SelectResult::Second(value2));
     }
@@ -224,7 +232,7 @@ pub fn select2<T1, T2>(
     ch2.register_waker(waker);
 
     // Return pending (caller should suspend)
-    Err(())
+    bail!("Both channels are empty; return pending")
 }
 
 /// Select operation between two channels with async support.

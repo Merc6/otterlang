@@ -155,6 +155,10 @@ pub extern "C" fn otter_runtime_memory_profiler_leaks() -> *mut c_char {
 
 /// Set garbage collection strategy
 /// strategy: "rc", "mark-sweep", "hybrid", or "none"
+///
+/// # Safety
+///
+/// this function dereferences a raw pointer
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_runtime_set_gc_strategy(strategy: *const c_char) -> i32 {
     if strategy.is_null() {
@@ -192,7 +196,7 @@ pub extern "C" fn otter_runtime_stats() -> *mut c_char {
     let memory_bytes = stats.heap_bytes;
 
     #[cfg_attr(not(feature = "task-runtime"), allow(unused_mut))]
-    let mut fields = vec![
+    let mut fields = [
         format!("\"gos\":{}", active_gos),
         format!("\"cpu_count\":{}", cpu_count),
         format!("\"memory_bytes\":{}", memory_bytes),
@@ -274,13 +278,17 @@ pub extern "C" fn otter_runtime_version() -> *mut c_char {
 }
 
 /// Free a string returned by runtime functions
+/// ///
+/// # Safety
+///
+/// this function dereferences a raw pointer
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_runtime_free_string(ptr: *mut c_char) {
     if ptr.is_null() {
         return;
     }
     unsafe {
-        let _ = CString::from_raw(ptr);
+        drop(CString::from_raw(ptr));
     }
 }
 

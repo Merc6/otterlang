@@ -3,22 +3,17 @@
 use serde::{Deserialize, Serialize};
 
 /// Garbage collection strategy
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum GcStrategy {
     /// Reference counting only (no cycle detection)
     ReferenceCounting,
     /// Mark-and-sweep garbage collection
     MarkSweep,
     /// Hybrid: reference counting + periodic mark-sweep for cycles
+    #[default]
     Hybrid,
     /// No garbage collection (manual management)
     None,
-}
-
-impl Default for GcStrategy {
-    fn default() -> Self {
-        GcStrategy::Hybrid
-    }
 }
 
 impl std::str::FromStr for GcStrategy {
@@ -75,22 +70,22 @@ impl GcConfig {
     pub fn from_env() -> Self {
         let mut config = Self::default();
 
-        if let Ok(strategy_str) = std::env::var("OTTER_GC_STRATEGY") {
-            if let Ok(strategy) = strategy_str.parse() {
-                config.strategy = strategy;
-            }
+        if let Ok(strategy_str) = std::env::var("OTTER_GC_STRATEGY")
+            && let Ok(strategy) = strategy_str.parse()
+        {
+            config.strategy = strategy;
         }
 
-        if let Ok(threshold) = std::env::var("OTTER_GC_THRESHOLD") {
-            if let Ok(threshold_val) = threshold.parse::<f64>() {
-                config.memory_threshold = threshold_val.max(0.0).min(1.0);
-            }
+        if let Ok(threshold) = std::env::var("OTTER_GC_THRESHOLD")
+            && let Ok(threshold_val) = threshold.parse::<f64>()
+        {
+            config.memory_threshold = threshold_val.clamp(0., 1.);
         }
 
-        if let Ok(interval) = std::env::var("OTTER_GC_INTERVAL") {
-            if let Ok(interval_ms) = interval.parse::<u64>() {
-                config.gc_interval_ms = interval_ms;
-            }
+        if let Ok(interval) = std::env::var("OTTER_GC_INTERVAL")
+            && let Ok(interval_ms) = interval.parse::<u64>()
+        {
+            config.gc_interval_ms = interval_ms;
         }
 
         config

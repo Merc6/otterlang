@@ -27,10 +27,7 @@ impl SimdOpportunityDetector {
 
         for pattern in patterns {
             if let Some(struct_id) = pattern.struct_id {
-                struct_patterns
-                    .entry(struct_id)
-                    .or_insert_with(Vec::new)
-                    .push(pattern);
+                struct_patterns.entry(struct_id).or_default().push(pattern);
             }
         }
 
@@ -135,11 +132,7 @@ impl SimdOpportunityDetector {
         for i in 1..patterns.len() {
             let addr1 = patterns[i - 1].address;
             let addr2 = patterns[i].address;
-            let distance = if addr2 > addr1 {
-                addr2 - addr1
-            } else {
-                addr1 - addr2
-            };
+            let distance = addr2.abs_diff(addr1);
 
             // Sequential if addresses are close and increasing
             if distance <= self.simd_width / 8 && addr2 > addr1 {
@@ -163,13 +156,13 @@ impl SimdOpportunityDetector {
         let mut total_field_accesses = 0;
 
         for pattern in patterns {
-            if let Some(field_id) = pattern.field_id {
-                if vectorizable_fields.contains(&field_id) {
-                    total_field_accesses += 1;
-                    // Check if address is aligned to SIMD width
-                    if pattern.address % (self.simd_width / 8) == 0 {
-                        aligned_accesses += 1;
-                    }
+            if let Some(field_id) = pattern.field_id
+                && vectorizable_fields.contains(&field_id)
+            {
+                total_field_accesses += 1;
+                // Check if address is aligned to SIMD width
+                if pattern.address % (self.simd_width / 8) == 0 {
+                    aligned_accesses += 1;
                 }
             }
         }

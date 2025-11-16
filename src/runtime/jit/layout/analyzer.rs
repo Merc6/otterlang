@@ -38,10 +38,7 @@ impl CacheLocalityAnalyzer {
         let mut struct_patterns: HashMap<StructId, Vec<&AccessPattern>> = HashMap::new();
         for pattern in patterns {
             if let Some(struct_id) = pattern.struct_id {
-                struct_patterns
-                    .entry(struct_id)
-                    .or_insert_with(Vec::new)
-                    .push(pattern);
+                struct_patterns.entry(struct_id).or_default().push(pattern);
             }
         }
 
@@ -114,11 +111,7 @@ impl CacheLocalityAnalyzer {
         for i in 1..patterns.len() {
             let addr1 = patterns[i - 1].address;
             let addr2 = patterns[i].address;
-            let distance = if addr2 > addr1 {
-                addr2 - addr1
-            } else {
-                addr1 - addr2
-            };
+            let distance = addr2.abs_diff(addr1);
 
             // Score based on cache line alignment
             if distance < self.cache_line_size {
