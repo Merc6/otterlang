@@ -1,7 +1,9 @@
 //! definition for the `Span` type.
 
+use std::{num::TryFromIntError, ops::Range};
+
 /// A byte range, typically used for representing a slice in source-text
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(target_pointer_width = "64", repr(align(8)))]
 pub struct Span {
     /// the ending position of the range
@@ -52,5 +54,14 @@ impl Span {
     #[must_use = "doesn't do any in-place modifications"]
     pub const fn start_mut(&mut self) -> &mut u32 {
         &mut self.start
+    }
+}
+
+impl TryFrom<Range<usize>> for Span {
+    type Error = TryFromIntError;
+
+    #[inline]
+    fn try_from(value: Range<usize>) -> Result<Self, Self::Error> {
+        Ok(Self::new(value.start.try_into()?, value.end.try_into()?))
     }
 }
