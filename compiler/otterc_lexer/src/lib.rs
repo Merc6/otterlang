@@ -1,7 +1,5 @@
 //! The lexer for the otter-lang compiler
 
-#![feature(iter_collect_into)]
-
 mod error;
 mod token;
 
