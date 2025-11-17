@@ -1,6 +1,6 @@
 //! definition for the `Span` type.
 
-use std::{num::TryFromIntError, ops::Range};
+use core::{num::TryFromIntError, ops::Range};
 
 /// A byte range, typically used for representing a slice in source-text
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
