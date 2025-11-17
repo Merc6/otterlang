@@ -44,7 +44,7 @@ implicit_return.level = "allow"
 
 # missing_trait_methods is allowable because otherwise it forces the
 # programmer to rewrite already written trait methods, which is
-# unnecessary and time-consumings
+# unnecessary and time-consuming
 missing_trait_methods.level = "allow"
 
 # float_arithmetic is allowable because we are not developing on platforms
@@ -67,7 +67,7 @@ separated_literal_suffix.level = "allow"
 mod_module_files.level = "allow"
 
 # wildcard_enum_match_arm is allowable because it disables the use of a
-# wildcard pattern, making code less concise and more unleadable
+# wildcard pattern, making code less concise and more unreadable
 wildcard_enum_match_arm.level = "allow"
 
 # pub_with_shorthand is allowable because rustfmt auto-formats certain
@@ -84,3 +84,12 @@ pub_use.level = "allow"
 # so it makes sense to separate - at least - constructors from the rest of the
 # impl-s.
 multiple_inherent_impl.level = "allow"
+
+# error_impl_error is allowable because crates that can only produce one type
+# of error, should only have that error named `Error`.
+error_impl_error.level = "allow"
+
+# question_mark_used is allowable with certain restrictions, that is that the
+# error does not implicitly cast to another error, unless used in application
+# context.
+question_mark_used.level = "allow"
