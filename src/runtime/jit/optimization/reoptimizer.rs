@@ -276,7 +276,7 @@ impl Reoptimizer {
                     if let Some(guard) = &mut arm.as_mut().guard {
                         self.fold_constants_in_expr(guard.as_mut());
                     }
-                    self.fold_constants_in_expr(arm.as_mut().body.as_mut());
+                    self.fold_constants_in_block(arm.as_mut().body.as_mut());
                 }
                 None
             }

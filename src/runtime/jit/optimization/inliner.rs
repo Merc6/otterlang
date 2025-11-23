@@ -475,7 +475,7 @@ impl Inliner {
                             current_name,
                         );
                     }
-                    self.inline_expr(
+                    self.inline_block(
                         &mut arm.as_mut().body,
                         ctx,
                         stack,
@@ -979,7 +979,7 @@ impl InlineBuilder {
                         arm.map(|arm| MatchArm {
                             pattern: self.rewrite_pattern(&arm.pattern),
                             guard: arm.guard.as_ref().map(|g| self.rewrite_expr(g)),
-                            body: self.rewrite_expr(&arm.body),
+                            body: self.rewrite_nested_block(&arm.body),
                         })
                     })
                     .collect(),

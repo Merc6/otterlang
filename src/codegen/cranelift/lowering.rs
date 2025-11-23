@@ -380,7 +380,7 @@ impl CraneliftBackend {
 
                     // Execute the arm body
                     builder.switch_to_block(arm_end_blocks[i]);
-                    let arm_result = self.lower_expr_with_builder(builder, &arm.body, variables)?;
+                    let arm_result = self.lower_block_with_builder(builder, &arm.body, variables)?;
                     builder.ins().jump(merge_block, &[arm_result]);
                 }
 

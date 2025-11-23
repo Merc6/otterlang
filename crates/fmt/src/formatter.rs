@@ -479,7 +479,7 @@ impl Formatter {
                         "{}    case {} => {}\n",
                         self.indent(indent),
                         self.format_pattern(&arm.as_ref().pattern),
-                        self.format_expr(&arm.as_ref().body, indent)
+                        self.format_block(&arm.as_ref().body, indent + 1)
                     ));
                 }
                 result

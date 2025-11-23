@@ -480,7 +480,7 @@ pub enum Expr {
 pub struct MatchArm {
     pub pattern: Node<Pattern>,
     pub guard: Option<Node<Expr>>,
-    pub body: Node<Expr>,
+    pub body: Node<Block>,
 }
 
 /// Exception handler for try/except blocks

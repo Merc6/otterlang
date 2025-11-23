@@ -1220,6 +1220,43 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
         }
     }
 
+    fn eval_block(
+        &mut self,
+        block: &Block,
+        ctx: &mut FunctionContext<'ctx>,
+    ) -> Result<EvaluatedValue<'ctx>> {
+        let current_function = self
+            .builder
+            .get_insert_block()
+            .and_then(|bb| bb.get_parent())
+            .ok_or_else(|| anyhow!("not in a function"))?;
+
+        let mut last_value = EvaluatedValue {
+            ty: OtterType::Unit,
+            value: None,
+        };
+
+        let len = block.statements.len();
+        for (i, stmt) in block.statements.iter().enumerate() {
+            let is_last = i == len - 1;
+
+            if is_last {
+                if let Statement::Expr(expr) = stmt.as_ref() {
+                    last_value = self.eval_expr(expr.as_ref(), ctx)?;
+                } else {
+                    self.lower_statement(stmt.as_ref(), current_function, ctx)?;
+                    last_value = EvaluatedValue {
+                        ty: OtterType::Unit,
+                        value: None,
+                    };
+                }
+            } else {
+                self.lower_statement(stmt.as_ref(), current_function, ctx)?;
+            }
+        }
+        Ok(last_value)
+    }
+
     fn eval_expr(
         &mut self,
         expr: &Expr,
@@ -1350,7 +1387,7 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                         &mut test_ctx,
                     )?;
                     let test_result =
-                        self.eval_expr(first_arm.as_ref().body.as_ref(), &mut test_ctx)?;
+                        self.eval_block(first_arm.as_ref().body.as_ref(), &mut test_ctx)?;
 
                     self.builder
                         .build_unreachable()
@@ -1417,7 +1454,7 @@ impl<'ctx, 'types> Compiler<'ctx, 'types> {
                     )?;
 
                     // Evaluate arm body
-                    let arm_result = self.eval_expr(arm.as_ref().body.as_ref(), &mut arm_ctx)?;
+                    let arm_result = self.eval_block(arm.as_ref().body.as_ref(), &mut arm_ctx)?;
 
                     // Store result
                     if let Some(alloca) = result_alloca

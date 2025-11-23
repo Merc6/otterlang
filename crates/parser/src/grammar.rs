@@ -697,27 +697,141 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .boxed();
 
         let newline = just(TokenKind::Newline).repeated().at_least(1);
+        
+        // Define a local statement parser for match arms to avoid circular dependency
+        // This duplicates some logic from program_parser but is necessary because expr_parser
+        // cannot easily access the recursive statement parser from program_parser.
+        let match_stmt = recursive(|stmt| {
+            let print_stmt = just(TokenKind::Print)
+                .ignore_then(
+                    expr.clone()
+                        .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                )
+                .map_with_span(|arg, span| {
+                    let span: Span = span.into();
+                    Node::new(
+                        Statement::Expr(Node::new(
+                            Expr::Call {
+                                func: Box::new(Node::new(Expr::Identifier("print".to_string()), span)),
+                                args: vec![arg],
+                            },
+                            span,
+                        )),
+                        span,
+                    )
+                })
+                .boxed();
+
+            let return_stmt = just(TokenKind::Return)
+                .ignore_then(expr.clone().or_not())
+                .map_with_span(|expr, span| Node::new(Statement::Return(expr), span))
+                .boxed();
+
+            let let_stmt = just(TokenKind::Let)
+                .or_not()
+                .then(
+                    identifier_parser()
+                        .map_with_span(Node::new)
+                        .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not()),
+                )
+                .then_ignore(just(TokenKind::Equals))
+                .then(expr.clone())
+                .map_with_span(|((_let, (name, ty)), expr), span| {
+                    Node::new(
+                        Statement::Let {
+                            name,
+                            ty,
+                            expr,
+                            public: false, // Match arms are local scopes
+                        },
+                        span,
+                    )
+                });
+
+            let assignment_stmt = identifier_parser()
+                .map_with_span(|name, span| (name, Span::new(span.start, span.end)))
+                .then(choice((
+                    just(TokenKind::PlusEq).to(BinaryOp::Add),
+                    just(TokenKind::MinusEq).to(BinaryOp::Sub),
+                    just(TokenKind::StarEq).to(BinaryOp::Mul),
+                    just(TokenKind::SlashEq).to(BinaryOp::Div),
+                )))
+                .then(expr.clone())
+                .map_with_span(|(((name, name_span), op), rhs), span| {
+                    let span: Span = span.into();
+                    let expr = Node::new(
+                        Expr::Binary {
+                            op,
+                            left: Box::new(Node::new(Expr::Identifier(name.clone()), name_span)),
+                            right: Box::new(rhs),
+                        },
+                        span,
+                    );
+                    Node::new(
+                        Statement::Assignment {
+                            name: Node::new(name, name_span),
+                            expr,
+                        },
+                        span,
+                    )
+                })
+                .boxed();
+                
+            // Simple assignment (=)
+            let simple_assignment = identifier_parser()
+                .map_with_span(Node::new)
+                .then_ignore(just(TokenKind::Equals))
+                .then(expr.clone())
+                .map_with_span(|(name, expr), span| {
+                    Node::new(
+                        Statement::Assignment {
+                            name,
+                            expr,
+                        },
+                        span,
+                    )
+                })
+                .boxed();
+
+            let pass_stmt = just(TokenKind::Pass)
+                .map_with_span(|_, span| Node::new(Statement::Pass, span))
+                .boxed();
+                
+            let break_stmt = just(TokenKind::Break)
+                .map_with_span(|_, span| Node::new(Statement::Break, span))
+                .boxed();
+                
+            let continue_stmt = just(TokenKind::Continue)
+                .map_with_span(|_, span| Node::new(Statement::Continue, span))
+                .boxed();
+
+            choice((
+                print_stmt,
+                return_stmt,
+                let_stmt,
+                assignment_stmt,
+                simple_assignment,
+                pass_stmt,
+                break_stmt,
+                continue_stmt,
+                expr.clone()
+                    .map_with_span(|expr, span| Node::new(Statement::Expr(expr), span)),
+            ))
+            .then_ignore(newline.clone().or_not())
+            .boxed()
+        });
+
         let match_case = just(TokenKind::Case)
             .ignore_then(pattern_parser())
             .then_ignore(just(TokenKind::Colon))
             .then_ignore(newline.clone())
-            .then_ignore(just(TokenKind::Indent))
             .then(
-                logical
-                    .clone()
-                    .then_ignore(newline.clone())
+                match_stmt.clone()
                     .repeated()
                     .at_least(1)
-                    .map_with_span(|exprs, span| {
-                        let span: Span = span.into();
-                        // Take the last expression as the body
-                        exprs.last().cloned().unwrap_or(Node::new(
-                            Expr::Literal(Node::new(Literal::Unit, span)),
-                            span,
-                        ))
-                    }),
+                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
-            .then_ignore(just(TokenKind::Dedent))
             .map_with_span(|(pattern, body), span| {
                 Node::new(
                     MatchArm {

@@ -389,11 +389,11 @@ impl TypeChecker {
         // Type check function body with return type tracking
         let old_context = std::mem::replace(&mut self.context, fn_context);
         let old_return_type = self.current_function_return_type.replace(return_type);
-        let result = self.check_block(&function.as_ref().body);
+        let _ = self.check_block(&function.as_ref().body)?;
         self.context = old_context;
         self.current_function_return_type = old_return_type;
 
-        result
+        Ok(())
     }
 
     /// Check function with generic type parameters
@@ -926,15 +926,16 @@ impl TypeChecker {
     }
 
     /// Type check a block
-    fn check_block(&mut self, block: &Node<Block>) -> Result<()> {
+    fn check_block(&mut self, block: &Node<Block>) -> Result<TypeInfo> {
+        let mut last_type = TypeInfo::Unit;
         for statement in &block.as_ref().statements {
-            self.check_statement(statement)?;
+            last_type = self.check_statement(statement)?;
         }
-        Ok(())
+        Ok(last_type)
     }
 
     /// Type check a statement
-    fn check_statement(&mut self, statement: &Node<Statement>) -> Result<()> {
+    fn check_statement(&mut self, statement: &Node<Statement>) -> Result<TypeInfo> {
         let span = statement.span();
         match statement.as_ref() {
             Statement::Let { name, ty, expr, .. } => {
@@ -967,6 +968,7 @@ impl TypeChecker {
                     self.context
                         .insert_variable(name.as_ref().clone(), expr_type);
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::Assignment { name, expr } => {
                 let var_type = self
@@ -995,6 +997,7 @@ impl TypeChecker {
                     .with_help("Make sure the types match or are compatible (e.g., i32 can be promoted to i64 or f64)".to_string())
                     .with_span(*span));
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::If {
                 cond,
@@ -1020,6 +1023,7 @@ impl TypeChecker {
                 if let Some(block) = else_block {
                     self.check_block(block)?;
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::For {
                 var,
@@ -1056,6 +1060,7 @@ impl TypeChecker {
                         self.context.remove_variable(var.as_ref());
                     }
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::While { cond, body } => {
                 let cond_type = self.infer_expr_type(cond)?;
@@ -1069,6 +1074,7 @@ impl TypeChecker {
                     );
                 }
                 self.check_block(body)?;
+                Ok(TypeInfo::Unit)
             }
             Statement::Return(expr) => {
                 if let Some(expr) = expr {
@@ -1113,35 +1119,46 @@ impl TypeChecker {
                         );
                     }
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::Function(_) => {
                 // Functions are handled separately
+                Ok(TypeInfo::Unit)
             }
             Statement::Expr(expr) => {
-                let _expr_type = self.infer_expr_type(expr)?;
+                let expr_type = self.infer_expr_type(expr)?;
                 // Expression statements are allowed (e.g., function calls)
+                Ok(expr_type)
             }
             Statement::Break | Statement::Continue => {
                 // These are handled by loop context
+                Ok(TypeInfo::Unit)
             }
             Statement::Pass => {
                 // No-op
+                Ok(TypeInfo::Unit)
             }
             Statement::Use { .. } => {
                 // Module imports are handled separately
+                Ok(TypeInfo::Unit)
             }
-            Statement::PubUse { .. } => {}
+            Statement::PubUse { .. } => {
+                Ok(TypeInfo::Unit)
+            }
             Statement::Struct { .. } => {
                 // Struct definitions are handled at the module level
+                Ok(TypeInfo::Unit)
             }
             Statement::Enum { .. } => {
                 // Enums are handled during the module pass
+                Ok(TypeInfo::Unit)
             }
             Statement::TypeAlias { .. } => {
                 // Type aliases are handled at the module level
+                Ok(TypeInfo::Unit)
             }
             Statement::Block(block) => {
-                self.check_block(block)?;
+                self.check_block(block)
             }
             Statement::Try {
                 body,
@@ -1192,6 +1209,7 @@ impl TypeChecker {
                 if let Some(finally_block) = finally_block {
                     self.check_block(finally_block)?;
                 }
+                Ok(TypeInfo::Unit)
             }
             Statement::Raise(expr) => {
                 if let Some(expr) = expr {
@@ -1208,9 +1226,9 @@ impl TypeChecker {
                     // Bare raise statement - only valid inside exception handlers
                     // For now, we'll allow it (checked at runtime)
                 }
+                Ok(TypeInfo::Unit)
             }
         }
-        Ok(())
     }
 
     /// Infer the type of an expression
@@ -2161,9 +2179,9 @@ impl TypeChecker {
                             }
                         }
 
-                        // Get arm body type
-                        let body_type = self.infer_expr_type(&arm.as_ref().body)?;
-                        arm_types.push(body_type);
+                        // Check body (now a block)
+                        let arm_return_type = self.check_block(&arm.as_ref().body)?;
+                        arm_types.push(arm_return_type);
 
                         // Restore original variables (pattern bindings don't leak)
                         self.context.variables = old_vars;
