@@ -830,12 +830,20 @@ impl LexerState {
     }
 
     fn finalize_indentation(&mut self) {
+        // Insert an extra newline to prevent parsing errors
+        self.tokens.push(Token::new(
+            TokenKind::Newline,
+            Span::new(self.offset, self.offset),
+        ));
+
+        // Dedent to base level
         while self.indent_stack.len() > 1 {
             self.indent_stack.pop();
             let span = Span::new(self.offset, self.offset);
             self.tokens.push(Token::new(TokenKind::Dedent, span));
         }
 
+        // Add EOF token
         let eof_span = Span::new(self.offset, self.offset);
         self.tokens.push(Token::new(TokenKind::Eof, eof_span));
     }
