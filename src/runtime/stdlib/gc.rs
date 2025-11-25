@@ -1,6 +1,6 @@
 //! Garbage Collection FFI bindings
 
-use crate::runtime::memory::get_gc;
+use crate::runtime::memory::{arena, get_gc};
 
 /// Allocate memory on the heap managed by the GC
 ///
@@ -35,4 +35,55 @@ pub unsafe extern "C" fn otter_gc_add_root(ptr: *mut u8) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_gc_remove_root(ptr: *mut u8) {
     get_gc().remove_root(ptr as usize);
+}
+
+/// Enable garbage collection. Returns previous GC state.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_gc_enable() -> bool {
+    get_gc().enable()
+}
+
+/// Disable garbage collection. Returns previous GC state.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_gc_disable() -> bool {
+    get_gc().disable()
+}
+
+/// Query whether garbage collection is currently enabled.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_gc_is_enabled() -> bool {
+    get_gc().is_enabled()
+}
+
+/// Create a dedicated arena allocator and return its handle.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_arena_create(capacity: i64) -> u64 {
+    let capacity = if capacity <= 0 {
+        64 * 1024 // default 64KB
+    } else {
+        capacity as usize
+    };
+    arena::create_arena(capacity)
+}
+
+/// Destroy a previously created arena.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_arena_destroy(handle: u64) -> bool {
+    arena::destroy_arena(handle)
+}
+
+/// Allocate bytes from an arena.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_arena_alloc(handle: u64, size: i64, align: i64) -> *mut u8 {
+    if size <= 0 {
+        return std::ptr::null_mut();
+    }
+    let align = if align <= 0 { 8 } else { align as usize };
+    arena::arena_alloc(handle, size as usize, align).unwrap_or(std::ptr::null_mut())
+}
+
+/// Reset an arena, freeing all allocations at once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_arena_reset(handle: u64) -> bool {
+    arena::reset_arena(handle)
 }

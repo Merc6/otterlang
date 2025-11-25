@@ -180,6 +180,59 @@ Removes a previously registered root pointer.
 gc.remove_root(ptr)
 ```
 
+##### `gc.disable() -> bool`
+
+Temporarily pauses automatic garbage collection. Returns the previous state so you can
+restore it later. Allocations continue to work while GC is disabled, and collections resume
+automatically once the disabled allocation limit is reached (64MB by default, configurable via
+`OTTER_GC_DISABLED_MAX_BYTES`).
+
+```
+let was_enabled = gc.disable()
+// run a tight loop
+if was_enabled:
+    gc.enable()
+```
+
+##### `gc.enable() -> bool`
+
+Re-enables garbage collection. Returns the previous state.
+
+```
+gc.enable()
+```
+
+##### `gc.is_enabled() -> bool`
+
+Returns `true` when the collector is currently active.
+
+```
+if not gc.is_enabled():
+    gc.enable()
+```
+
+### `arena`
+
+Lightweight bump-allocated arenas for deterministic lifetimes. Arenas do not participate in the
+GC; all allocations live until you reset or destroy the arena.
+
+##### `arena.create(capacity: int = 65536) -> i64`
+
+Creates a new arena with the requested capacity (default 64KB) and returns a handle.
+
+##### `arena.alloc(handle: i64, size: int, align: int = 8) -> i64`
+
+Allocates raw bytes from the arena. Returns a pointer (as an integer) or `0` if there is not
+enough space.
+
+##### `arena.reset(handle: i64) -> bool`
+
+Clears all allocations inside the arena so it can be reused.
+
+##### `arena.destroy(handle: i64) -> bool`
+
+Destroys the arena and frees its backing memory.
+
 Manually triggers garbage collection. Returns bytes freed.
 
 ```otter

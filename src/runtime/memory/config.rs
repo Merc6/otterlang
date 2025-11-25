@@ -43,6 +43,8 @@ pub struct GcConfig {
     pub auto_gc: bool,
     /// Maximum heap size in bytes (0 = unlimited)
     pub max_heap_size: usize,
+    /// Maximum bytes that may be allocated while GC is disabled (0 = unlimited)
+    pub disabled_heap_limit: usize,
 }
 
 impl Default for GcConfig {
@@ -52,7 +54,8 @@ impl Default for GcConfig {
             memory_threshold: 0.8, // 80% memory usage
             gc_interval_ms: 5000,  // 5 seconds
             auto_gc: true,
-            max_heap_size: 0, // Unlimited
+            max_heap_size: 0,                      // Unlimited
+            disabled_heap_limit: 64 * 1024 * 1024, // 64MB safeguard while GC disabled
         }
     }
 }
@@ -86,6 +89,12 @@ impl GcConfig {
             && let Ok(interval_ms) = interval.parse::<u64>()
         {
             config.gc_interval_ms = interval_ms;
+        }
+
+        if let Ok(limit) = std::env::var("OTTER_GC_DISABLED_MAX_BYTES")
+            && let Ok(limit_bytes) = limit.parse::<usize>()
+        {
+            config.disabled_heap_limit = limit_bytes;
         }
 
         config

@@ -3,6 +3,7 @@
 //! Provides reference counting, garbage collection, and memory profiling
 
 pub mod allocator;
+pub mod arena;
 pub mod config;
 pub mod gc;
 pub mod object;

@@ -1829,6 +1829,51 @@ fn register_builtin_symbols(registry: &SymbolRegistry) {
             result: FfiType::Unit,
         },
     });
+
+    registry.register(FfiFunction {
+        name: "gc.enable".into(),
+        symbol: "otter_gc_enable".into(),
+        signature: FfiSignature::new(vec![], FfiType::Bool),
+    });
+
+    registry.register(FfiFunction {
+        name: "gc.disable".into(),
+        symbol: "otter_gc_disable".into(),
+        signature: FfiSignature::new(vec![], FfiType::Bool),
+    });
+
+    registry.register(FfiFunction {
+        name: "gc.is_enabled".into(),
+        symbol: "otter_gc_is_enabled".into(),
+        signature: FfiSignature::new(vec![], FfiType::Bool),
+    });
+
+    registry.register(FfiFunction {
+        name: "arena.create".into(),
+        symbol: "otter_arena_create".into(),
+        signature: FfiSignature::new(vec![FfiType::I64], FfiType::I64),
+    });
+
+    registry.register(FfiFunction {
+        name: "arena.destroy".into(),
+        symbol: "otter_arena_destroy".into(),
+        signature: FfiSignature::new(vec![FfiType::I64], FfiType::Bool),
+    });
+
+    registry.register(FfiFunction {
+        name: "arena.reset".into(),
+        symbol: "otter_arena_reset".into(),
+        signature: FfiSignature::new(vec![FfiType::I64], FfiType::Bool),
+    });
+
+    registry.register(FfiFunction {
+        name: "arena.alloc".into(),
+        symbol: "otter_arena_alloc".into(),
+        signature: FfiSignature::new(
+            vec![FfiType::I64, FfiType::I64, FfiType::I64],
+            FfiType::Opaque,
+        ),
+    });
 }
 
 inventory::submit! {

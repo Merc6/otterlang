@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use parking_lot::RwLock;
 
@@ -319,6 +320,9 @@ impl Default for GenerationalGC {
 pub struct GcManager {
     strategy: Arc<RwLock<Box<dyn GcStrategyTrait>>>,
     config: Arc<RwLock<crate::runtime::memory::config::GcConfig>>,
+    gc_enabled: AtomicBool,
+    disabled_bytes: AtomicUsize,
+    disabled_bytes_limit: AtomicUsize,
 }
 
 impl GcManager {
@@ -330,18 +334,35 @@ impl GcManager {
             GcStrategy::None => Box::new(NoOpGC),
         };
 
+        let disabled_limit = config.disabled_heap_limit;
         Self {
             strategy: Arc::new(RwLock::new(strategy)),
             config: Arc::new(RwLock::new(config)),
+            gc_enabled: AtomicBool::new(true),
+            disabled_bytes: AtomicUsize::new(0),
+            disabled_bytes_limit: AtomicUsize::new(disabled_limit),
         }
     }
 
     pub fn collect(&self) -> GcStats {
+        if !self.is_enabled() {
+            return GcStats::default();
+        }
         self.strategy.read().collect()
     }
 
     pub fn alloc(&self, size: usize) -> Option<*mut u8> {
-        self.strategy.read().alloc(size)
+        let ptr = self.strategy.read().alloc(size);
+        if ptr.is_some() && !self.is_enabled() {
+            let total = self.disabled_bytes.fetch_add(size, Ordering::SeqCst) + size;
+            let limit = self.disabled_bytes_limit.load(Ordering::SeqCst);
+            if limit > 0 && total >= limit {
+                self.enable();
+                // Trigger a collection now that GC is re-enabled
+                let _ = self.collect();
+            }
+        }
+        ptr
     }
 
     pub fn add_root(&self, ptr: usize) {
@@ -365,6 +386,24 @@ impl GcManager {
 
     pub fn config(&self) -> Arc<RwLock<crate::runtime::memory::config::GcConfig>> {
         self.config.clone()
+    }
+
+    pub fn enable(&self) -> bool {
+        let previous = self.gc_enabled.swap(true, Ordering::SeqCst);
+        if !previous {
+            self.disabled_bytes.store(0, Ordering::SeqCst);
+        }
+        previous
+    }
+
+    pub fn disable(&self) -> bool {
+        let previous = self.gc_enabled.swap(false, Ordering::SeqCst);
+        self.disabled_bytes.store(0, Ordering::SeqCst);
+        previous
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.gc_enabled.load(Ordering::SeqCst)
     }
 }
 
