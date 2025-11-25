@@ -1,0 +1,15 @@
+fn concat_literals():
+    let base = "Hello"
+    let message = base + ", " + "world"
+    let number = "Value: " + 42
+    let trail = 7 + " lucky"
+
+fn concat_variables():
+    let prefix = "Count: "
+    let count = 3
+    let suffix = " items"
+    let summary = prefix + count + suffix
+
+fn main():
+    concat_literals()
+    concat_variables()

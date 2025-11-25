@@ -1,6 +1,8 @@
 pub mod builtins;
+pub mod enums;
 pub mod exceptions;
 pub mod fmt;
+pub mod gc;
 pub mod io;
 pub mod json;
 pub mod math;

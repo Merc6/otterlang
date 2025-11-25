@@ -9,9 +9,9 @@ pub enum GcStrategy {
     ReferenceCounting,
     /// Mark-and-sweep garbage collection
     MarkSweep,
-    /// Hybrid: reference counting + periodic mark-sweep for cycles
+    /// Generational: Nursery (Bump Pointer) + Old Gen (Mark-Sweep)
     #[default]
-    Hybrid,
+    Generational,
     /// No garbage collection (manual management)
     None,
 }
@@ -23,7 +23,7 @@ impl std::str::FromStr for GcStrategy {
         match s.to_lowercase().as_str() {
             "rc" | "reference-counting" | "reference_counting" => Ok(GcStrategy::ReferenceCounting),
             "mark-sweep" | "mark_sweep" | "ms" => Ok(GcStrategy::MarkSweep),
-            "hybrid" => Ok(GcStrategy::Hybrid),
+            "generational" | "gen" => Ok(GcStrategy::Generational),
             "none" => Ok(GcStrategy::None),
             _ => Err(format!("Unknown GC strategy: {}", s)),
         }
@@ -48,7 +48,7 @@ pub struct GcConfig {
 impl Default for GcConfig {
     fn default() -> Self {
         Self {
-            strategy: GcStrategy::Hybrid,
+            strategy: GcStrategy::Generational,
             memory_threshold: 0.8, // 80% memory usage
             gc_interval_ms: 5000,  // 5 seconds
             auto_gc: true,

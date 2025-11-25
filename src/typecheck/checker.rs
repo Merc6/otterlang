@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use std::collections::HashMap;
 
 use crate::runtime::symbol_registry::{FfiType, SymbolRegistry};
-use crate::typecheck::types::{EnumDefinition, TypeContext, TypeError, TypeInfo};
+use crate::typecheck::types::{EnumDefinition, EnumLayout, TypeContext, TypeError, TypeInfo};
 use ast::nodes::{
     BinaryOp, Block, Expr, FStringPart, Function, Literal, Node, Pattern, Program, Statement, Type,
     UnaryOp,
@@ -2338,6 +2338,10 @@ impl TypeChecker {
 
     pub fn into_expr_type_map(self) -> HashMap<usize, TypeInfo> {
         self.expr_types
+    }
+
+    pub fn enum_layouts(&self) -> HashMap<String, EnumLayout> {
+        self.context.enum_layouts()
     }
 
     fn build_member_path(&self, object: &Node<Expr>, field: &str) -> String {

@@ -1,6 +1,9 @@
+pub mod benchmark;
+pub mod config;
 pub mod error;
 pub mod ffi;
 pub mod ffi_api;
+pub mod introspection;
 pub mod jit;
 pub mod memory;
 pub mod stdlib;

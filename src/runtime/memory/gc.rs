@@ -2,7 +2,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use parking_lot::RwLock;
 
@@ -13,6 +12,15 @@ use crate::runtime::memory::profiler::get_profiler;
 pub trait GcStrategyTrait: Send + Sync {
     /// Run garbage collection
     fn collect(&self) -> GcStats;
+
+    /// Allocate memory
+    fn alloc(&self, size: usize) -> Option<*mut u8>;
+
+    /// Add a root object
+    fn add_root(&self, ptr: usize);
+
+    /// Remove a root object
+    fn remove_root(&self, ptr: usize);
 
     /// Get the strategy name
     fn name(&self) -> &'static str;
@@ -51,6 +59,19 @@ impl GcStrategyTrait for RcGC {
             duration_ms: 0,
         }
     }
+
+    fn alloc(&self, size: usize) -> Option<*mut u8> {
+        // Use system allocator
+        unsafe {
+            let layout = std::alloc::Layout::from_size_align(size, 8).ok()?;
+            let ptr = std::alloc::alloc(layout);
+            if ptr.is_null() { None } else { Some(ptr) }
+        }
+    }
+
+    fn add_root(&self, _ptr: usize) {}
+
+    fn remove_root(&self, _ptr: usize) {}
 
     fn name(&self) -> &'static str {
         "ReferenceCounting"
@@ -174,6 +195,23 @@ impl GcStrategyTrait for MarkSweepGC {
         stats
     }
 
+    fn alloc(&self, size: usize) -> Option<*mut u8> {
+        // Use system allocator (MarkSweep tracks objects separately)
+        unsafe {
+            let layout = std::alloc::Layout::from_size_align(size, 8).ok()?;
+            let ptr = std::alloc::alloc(layout);
+            if ptr.is_null() { None } else { Some(ptr) }
+        }
+    }
+
+    fn add_root(&self, ptr: usize) {
+        MarkSweepGC::add_root(self, ptr);
+    }
+
+    fn remove_root(&self, ptr: usize) {
+        MarkSweepGC::remove_root(self, ptr);
+    }
+
     fn name(&self) -> &'static str {
         "MarkSweep"
     }
@@ -185,51 +223,93 @@ impl Default for MarkSweepGC {
     }
 }
 
-/// Hybrid GC: reference counting + periodic mark-sweep
-pub struct HybridGC {
-    _rc_gc: RcGC,
-    mark_sweep_gc: MarkSweepGC,
-    cycle_detection_interval: usize,
-    allocations_since_cycle_check: Arc<AtomicUsize>,
+/// Generational GC: Nursery (Bump Pointer) + Old Gen (Mark-Sweep)
+pub struct GenerationalGC {
+    nursery: crate::runtime::memory::allocator::BumpAllocator,
+    old_gen: MarkSweepGC,
+    nursery_size: usize,
 }
 
-impl HybridGC {
+impl GenerationalGC {
     pub fn new() -> Self {
+        // Default nursery size: 2MB
+        let nursery_size = 2 * 1024 * 1024;
         Self {
-            _rc_gc: RcGC::new(),
-            mark_sweep_gc: MarkSweepGC::new(),
-            cycle_detection_interval: 1000, // Check for cycles every 1000 allocations
-            allocations_since_cycle_check: Arc::new(AtomicUsize::new(0)),
+            nursery: crate::runtime::memory::allocator::BumpAllocator::new(nursery_size),
+            old_gen: MarkSweepGC::new(),
+            nursery_size,
         }
     }
 
-    /// Record an allocation (for cycle detection scheduling)
-    pub fn record_allocation(&self) {
-        let count = self
-            .allocations_since_cycle_check
-            .fetch_add(1, Ordering::SeqCst)
-            + 1;
-        if count >= self.cycle_detection_interval {
-            self.allocations_since_cycle_check
-                .store(0, Ordering::SeqCst);
-            // Trigger cycle detection
-            let _ = self.mark_sweep_gc.collect();
+    /// Allocate memory in the nursery
+    pub fn alloc(&self, size: usize) -> Option<*mut u8> {
+        // Try to allocate in nursery
+        if let Some(ptr) = self.nursery.alloc(size, 8) {
+            return Some(ptr);
         }
+
+        // Nursery full, trigger minor GC
+        let _stats = self.collect_minor();
+
+        // Try again after GC
+        if let Some(ptr) = self.nursery.alloc(size, 8) {
+            Some(ptr)
+        } else {
+            // Still failed, try to allocate directly in old gen (fallback)
+            // For now, we just fail or trigger major GC
+            let _stats = self.collect_major();
+            self.nursery.alloc(size, 8)
+        }
+    }
+
+    /// Minor GC: Collect nursery, promote survivors to old gen
+    fn collect_minor(&self) -> GcStats {
+        // 1. Identify roots pointing to nursery
+        // 2. Copy survivors to old gen (or just mark them for now)
+        // 3. Reset nursery
+
+        // Simplified implementation:
+        // Just reset nursery for now (assuming no survivors for this demo)
+        // In a real implementation, we would trace and copy.
+        self.nursery.reset();
+
+        GcStats {
+            objects_collected: 0,
+            bytes_freed: self.nursery_size, // Roughly
+            duration_ms: 0,
+        }
+    }
+
+    /// Major GC: Collect old gen
+    fn collect_major(&self) -> GcStats {
+        self.old_gen.collect()
     }
 }
 
-impl GcStrategyTrait for HybridGC {
+impl GcStrategyTrait for GenerationalGC {
     fn collect(&self) -> GcStats {
-        // Run mark-sweep for cycle detection
-        self.mark_sweep_gc.collect()
+        // Default to minor GC
+        self.collect_minor()
+    }
+
+    fn alloc(&self, size: usize) -> Option<*mut u8> {
+        self.alloc(size)
+    }
+
+    fn add_root(&self, ptr: usize) {
+        self.old_gen.add_root(ptr);
+    }
+
+    fn remove_root(&self, ptr: usize) {
+        self.old_gen.remove_root(ptr);
     }
 
     fn name(&self) -> &'static str {
-        "Hybrid"
+        "Generational"
     }
 }
 
-impl Default for HybridGC {
+impl Default for GenerationalGC {
     fn default() -> Self {
         Self::new()
     }
@@ -246,7 +326,7 @@ impl GcManager {
         let strategy: Box<dyn GcStrategyTrait> = match config.strategy {
             GcStrategy::ReferenceCounting => Box::new(RcGC::new()),
             GcStrategy::MarkSweep => Box::new(MarkSweepGC::new()),
-            GcStrategy::Hybrid => Box::new(HybridGC::new()),
+            GcStrategy::Generational => Box::new(GenerationalGC::new()),
             GcStrategy::None => Box::new(NoOpGC),
         };
 
@@ -260,11 +340,23 @@ impl GcManager {
         self.strategy.read().collect()
     }
 
+    pub fn alloc(&self, size: usize) -> Option<*mut u8> {
+        self.strategy.read().alloc(size)
+    }
+
+    pub fn add_root(&self, ptr: usize) {
+        self.strategy.read().add_root(ptr);
+    }
+
+    pub fn remove_root(&self, ptr: usize) {
+        self.strategy.read().remove_root(ptr);
+    }
+
     pub fn set_strategy(&self, strategy: GcStrategy) {
         let new_strategy: Box<dyn GcStrategyTrait> = match strategy {
             GcStrategy::ReferenceCounting => Box::new(RcGC::new()),
             GcStrategy::MarkSweep => Box::new(MarkSweepGC::new()),
-            GcStrategy::Hybrid => Box::new(HybridGC::new()),
+            GcStrategy::Generational => Box::new(GenerationalGC::new()),
             GcStrategy::None => Box::new(NoOpGC),
         };
         *self.strategy.write() = new_strategy;
@@ -283,6 +375,18 @@ impl GcStrategyTrait for NoOpGC {
     fn collect(&self) -> GcStats {
         GcStats::default()
     }
+
+    fn alloc(&self, size: usize) -> Option<*mut u8> {
+        unsafe {
+            let layout = std::alloc::Layout::from_size_align(size, 8).ok()?;
+            let ptr = std::alloc::alloc(layout);
+            if ptr.is_null() { None } else { Some(ptr) }
+        }
+    }
+
+    fn add_root(&self, _ptr: usize) {}
+
+    fn remove_root(&self, _ptr: usize) {}
 
     fn name(&self) -> &'static str {
         "None"

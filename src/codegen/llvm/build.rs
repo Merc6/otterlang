@@ -10,7 +10,7 @@ use inkwell::context::Context as LlvmContext;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target};
 
 use crate::codegen::target::TargetTriple;
-use crate::typecheck::TypeInfo;
+use crate::typecheck::{EnumLayout, TypeInfo};
 
 use super::bridges::prepare_rust_bridges;
 use super::compiler::Compiler;
@@ -25,6 +25,7 @@ pub fn current_llvm_version() -> String {
 pub fn build_executable(
     program: &Program,
     expr_types: &HashMap<usize, TypeInfo>,
+    enum_layouts: &HashMap<String, EnumLayout>,
     output: &Path,
     options: &CodegenOptions,
 ) -> Result<BuildArtifact> {
@@ -33,7 +34,14 @@ pub fn build_executable(
     let builder = context.create_builder();
     let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
-    let mut compiler = Compiler::new(&context, module, builder, registry, expr_types.clone());
+    let mut compiler = Compiler::new(
+        &context,
+        module,
+        builder,
+        registry,
+        expr_types.clone(),
+        enum_layouts.clone(),
+    );
 
     compiler.lower_program(program, true)?; // Require main for executables
     compiler
@@ -241,6 +249,7 @@ pub fn build_executable(
 pub fn build_shared_library(
     program: &Program,
     expr_types: &HashMap<usize, TypeInfo>,
+    enum_layouts: &HashMap<String, EnumLayout>,
     output: &Path,
     options: &CodegenOptions,
 ) -> Result<BuildArtifact> {
@@ -249,7 +258,14 @@ pub fn build_shared_library(
     let builder = context.create_builder();
     let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
-    let mut compiler = Compiler::new(&context, module, builder, registry, expr_types.clone());
+    let mut compiler = Compiler::new(
+        &context,
+        module,
+        builder,
+        registry,
+        expr_types.clone(),
+        enum_layouts.clone(),
+    );
 
     compiler.lower_program(program, false)?; // Don't require main for shared libraries
     compiler

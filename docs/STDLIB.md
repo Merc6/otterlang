@@ -144,6 +144,48 @@ Manually triggers garbage collection. Returns bytes freed.
 freed = runtime.collect_garbage()
 ```
 
+##### `gc.alloc(size: int) -> i64`
+
+Allocates `size` bytes on the GC‑managed heap and returns a pointer (as an integer).
+
+**Parameters:**
+- `size`: Number of bytes to allocate.
+
+**Example:**
+```otter
+let ptr = gc.alloc(128)
+```
+
+##### `gc.add_root(ptr: i64) -> unit`
+
+Registers the given pointer as a GC root.
+
+**Parameters:**
+- `ptr`: Pointer returned by `gc.alloc`.
+
+**Example:**
+```otter
+gc.add_root(ptr)
+```
+
+##### `gc.remove_root(ptr: i64) -> unit`
+
+Removes a previously registered root pointer.
+
+**Parameters:**
+- `ptr`: Pointer previously added with `gc.add_root`.
+
+**Example:**
+```otter
+gc.remove_root(ptr)
+```
+
+Manually triggers garbage collection. Returns bytes freed.
+
+```otter
+freed = runtime.collect_garbage()
+```
+
 ##### `memory_profiler_start() -> unit`
 
 Starts memory profiling.

@@ -1,0 +1,10 @@
+fn main():
+    let name = "Otter"
+    let tagline = name + "Lang" + " makes strings easy"
+    print(tagline)
+
+    let score = "Score: " + 42
+    print(score)
+
+    let reversed = 7 + " seas"
+    print(reversed)

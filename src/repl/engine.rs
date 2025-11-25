@@ -125,7 +125,7 @@ impl ReplEngine {
                 false
             }
         }) {
-            match JitExecutor::new(self.program.clone(), self.symbol_registry) {
+            match JitExecutor::new(&self.program.clone(), self.symbol_registry) {
                 Ok(mut executor) => {
                     if self.program.statements.iter().any(|s| {
                         if let Statement::Function(f) = s.as_ref() {

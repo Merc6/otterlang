@@ -608,6 +608,25 @@ impl TypeContext {
             .and_then(|definition| definition.variants.iter().find(|v| v.name == variant))
     }
 
+    pub fn enum_layouts(&self) -> HashMap<String, EnumLayout> {
+        self.enums
+            .iter()
+            .map(|(name, definition)| {
+                (
+                    name.clone(),
+                    EnumLayout {
+                        name: name.clone(),
+                        variants: definition
+                            .variants
+                            .iter()
+                            .map(|variant| variant.name.clone())
+                            .collect(),
+                    },
+                )
+            })
+            .collect()
+    }
+
     pub fn build_enum_type(&self, name: &str, args: Vec<TypeInfo>) -> Option<TypeInfo> {
         let definition = self.enums.get(name)?;
         let mut normalized_args = if args.is_empty() {
@@ -703,4 +722,19 @@ pub struct EnumDefinition {
     pub name: String,
     pub generics: Vec<String>,
     pub variants: Vec<EnumVariant>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumLayout {
+    pub name: String,
+    pub variants: Vec<String>,
+}
+
+impl EnumLayout {
+    pub fn tag_of(&self, variant: &str) -> Option<u32> {
+        self.variants
+            .iter()
+            .position(|name| name == variant)
+            .map(|idx| idx as u32)
+    }
 }

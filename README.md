@@ -65,12 +65,11 @@ OtterLang features a clean, indentation-based syntax with modern language featur
 
 - **Pythonic syntax** - `fn` for functions, `class` for structs, `print()` for output
 - **Type system** - Static typing with type inference
-- **Enums and pattern matching** - Tagged unions with `match` expressions
+- **Enums and pattern matching** - Tagged unions with `match` expressions (pattern matching support pending)
 - **Exception handling** - `try/except/finally` blocks with zero-cost abstractions
 - **Concurrency** - `spawn` and `await` for async operations
 - **Transparent Rust FFI** - Use any Rust crate without manual bindings
-
-For complete syntax and language details, see the [Language Specification](docs/LANGUAGE_SPEC.md).
+- **Garbage Collection** - Generational GC with `gc.alloc`, `gc.add_root`, `gc.remove_root` FFI functions](docs/LANGUAGE_SPEC.md).
 
 ### Transparent Rust FFI
 

@@ -1,11 +1,12 @@
 use anyhow::{Result, anyhow, bail};
 use inkwell::IntPredicate;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::IntValue;
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue};
 
 use crate::codegen::llvm::compiler::Compiler;
 use crate::codegen::llvm::compiler::types::{EvaluatedValue, FunctionContext, OtterType};
-use ast::nodes::{BinaryOp, Expr, Literal, UnaryOp};
+use crate::typecheck::TypeInfo;
+use ast::nodes::{BinaryOp, Expr, Literal, Node, UnaryOp};
 
 impl<'ctx> Compiler<'ctx> {
     pub(crate) fn eval_expr(
@@ -36,6 +37,15 @@ impl<'ctx> Compiler<'ctx> {
             }
             Expr::Unary { op, expr } => self.eval_unary_expr(op, expr.as_ref().as_ref(), ctx),
             Expr::Call { func: _, args: _ } => self.eval_call_expr(expr, ctx),
+            Expr::Member { object, field } => {
+                if let Some(value) =
+                    self.try_build_enum_member(expr, object.as_ref().as_ref(), field, ctx)?
+                {
+                    Ok(value)
+                } else {
+                    bail!("Complex member expressions not yet supported");
+                }
+            }
             Expr::If {
                 cond: _,
                 then_branch: _,
@@ -83,10 +93,53 @@ impl<'ctx> Compiler<'ctx> {
         let lhs = self.eval_expr(left, ctx)?;
         let rhs = self.eval_expr(right, ctx)?;
 
-        match (lhs.ty, rhs.ty) {
-            (OtterType::I64, OtterType::I64) => {
-                let l = lhs.value.unwrap().into_int_value();
-                let r = rhs.value.unwrap().into_int_value();
+        if matches!(op, BinaryOp::Add) && (lhs.ty == OtterType::Str || rhs.ty == OtterType::Str) {
+            return self.build_string_concat(lhs, rhs);
+        }
+
+        // Coerce types if needed - promote to F64 if either operand is F64
+        let (lhs_val, rhs_val, result_ty) = if lhs.ty == OtterType::F64 || rhs.ty == OtterType::F64
+        {
+            // Promote both to F64
+            let l_f64 = if lhs.ty == OtterType::F64 {
+                lhs.value.unwrap().into_float_value()
+            } else if lhs.ty == OtterType::I64 {
+                let int_val = lhs.value.unwrap().into_int_value();
+                self.builder
+                    .build_signed_int_to_float(int_val, self.context.f64_type(), "itof")?
+            } else {
+                bail!("Cannot coerce {:?} to F64", lhs.ty);
+            };
+
+            let r_f64 = if rhs.ty == OtterType::F64 {
+                rhs.value.unwrap().into_float_value()
+            } else if rhs.ty == OtterType::I64 {
+                let int_val = rhs.value.unwrap().into_int_value();
+                self.builder
+                    .build_signed_int_to_float(int_val, self.context.f64_type(), "itof")?
+            } else {
+                bail!("Cannot coerce {:?} to F64", rhs.ty);
+            };
+
+            (l_f64.into(), r_f64.into(), OtterType::F64)
+        } else if lhs.ty == OtterType::I64 && rhs.ty == OtterType::I64 {
+            (lhs.value.unwrap(), rhs.value.unwrap(), OtterType::I64)
+        } else if lhs.ty == OtterType::Bool && rhs.ty == OtterType::Bool {
+            // Handle bool comparisons
+            (lhs.value.unwrap(), rhs.value.unwrap(), OtterType::Bool)
+        } else {
+            bail!(
+                "Type mismatch or unsupported types for binary op: {:?} and {:?}",
+                lhs.ty,
+                rhs.ty
+            );
+        };
+
+        // Perform the operation based on the result type
+        match result_ty {
+            OtterType::I64 => {
+                let l = lhs_val.into_int_value();
+                let r = rhs_val.into_int_value();
                 match op {
                     BinaryOp::Add => Ok(EvaluatedValue::with_value(
                         self.builder.build_int_add(l, r, "add")?.into(),
@@ -128,12 +181,24 @@ impl<'ctx> Compiler<'ctx> {
                             .into(),
                         OtterType::Bool,
                     )),
+                    BinaryOp::LtEq => Ok(EvaluatedValue::with_value(
+                        self.builder
+                            .build_int_compare(IntPredicate::SLE, l, r, "le")?
+                            .into(),
+                        OtterType::Bool,
+                    )),
+                    BinaryOp::GtEq => Ok(EvaluatedValue::with_value(
+                        self.builder
+                            .build_int_compare(IntPredicate::SGE, l, r, "ge")?
+                            .into(),
+                        OtterType::Bool,
+                    )),
                     _ => bail!("Unsupported binary op for I64"),
                 }
             }
-            (OtterType::F64, OtterType::F64) => {
-                let l = lhs.value.unwrap().into_float_value();
-                let r = rhs.value.unwrap().into_float_value();
+            OtterType::F64 => {
+                let l = lhs_val.into_float_value();
+                let r = rhs_val.into_float_value();
                 match op {
                     BinaryOp::Add => Ok(EvaluatedValue::with_value(
                         self.builder.build_float_add(l, r, "add")?.into(),
@@ -190,7 +255,7 @@ impl<'ctx> Compiler<'ctx> {
                     _ => bail!("Unsupported binary op for F64"),
                 }
             }
-            _ => bail!("Type mismatch or unsupported types for binary op"),
+            _ => bail!("Unsupported type for binary operation"),
         }
     }
 
@@ -353,18 +418,46 @@ impl<'ctx> Compiler<'ctx> {
         ctx: &mut FunctionContext<'ctx>,
     ) -> Result<EvaluatedValue<'ctx>> {
         if let Expr::Call { func, args } = expr {
-            // Evaluate function expression (usually an identifier)
-            let func_name = if let Expr::Identifier(name) = func.as_ref().as_ref() {
-                name.clone()
-            } else {
-                bail!("Complex function expressions not yet supported");
+            if let Some(enum_value) =
+                self.try_build_enum_constructor(expr, func.as_ref().as_ref(), args, ctx)?
+            {
+                return Ok(enum_value);
+            }
+
+            // Evaluate function expression - can be an identifier or member expression
+            let func_name = match func.as_ref().as_ref() {
+                Expr::Identifier(name) => name.clone(),
+                Expr::Member { object, field } => {
+                    // Handle enum constructors like Option.Some() or Result.Ok()
+                    if let Expr::Identifier(enum_name) = object.as_ref().as_ref() {
+                        // This is an enum constructor - for now, treat it as a regular function call
+                        // The actual enum construction logic would go here
+                        // For now, just create a placeholder that returns an opaque handle
+                        format!("{}.{}", enum_name, field)
+                    } else {
+                        bail!("Complex member expressions not yet supported");
+                    }
+                }
+                _ => bail!("Complex function expressions not yet supported"),
             };
 
-            // Look up the function and clone it to avoid borrow issues
-            let function = *self
-                .declared_functions
-                .get(&func_name)
-                .ok_or_else(|| anyhow!("Function {} not found", func_name))?;
+            // Look up the function - first check user-defined functions, then stdlib
+            let function = if let Some(func) = self.declared_functions.get(&func_name) {
+                *func
+            } else if self.symbol_registry.contains(&func_name) {
+                self.get_or_declare_ffi_function(&func_name)?
+            } else {
+                // If it's an enum constructor, create a stub function that returns an opaque value
+                if func_name.contains('.') {
+                    // Return a placeholder opaque value for enum constructors
+                    // In a full implementation, this would construct the actual enum value
+                    return Ok(EvaluatedValue::with_value(
+                        self.context.i64_type().const_int(0, false).into(),
+                        OtterType::Opaque,
+                    ));
+                }
+                bail!("Function {} not found", func_name);
+            };
 
             // Get parameter types upfront to avoid borrow issues
             let param_types = function.get_type().get_param_types();
@@ -405,8 +498,12 @@ impl<'ctx> Compiler<'ctx> {
 
             // Get return value
             if let Some(ret_val) = call_site.try_as_basic_value().left() {
-                // Function returns a value - assume F64 for now
-                Ok(EvaluatedValue::with_value(ret_val, OtterType::F64))
+                let return_ty = function
+                    .get_type()
+                    .get_return_type()
+                    .map(|ty| self.otter_type_from_basic_type(ty))
+                    .unwrap_or(OtterType::Opaque);
+                Ok(EvaluatedValue::with_value(ret_val, return_ty))
             } else {
                 // Function returns void
                 Ok(EvaluatedValue {
@@ -510,5 +607,309 @@ impl<'ctx> Compiler<'ctx> {
         } else {
             bail!("Expected If expression");
         }
+    }
+
+    fn build_string_concat(
+        &mut self,
+        lhs: EvaluatedValue<'ctx>,
+        rhs: EvaluatedValue<'ctx>,
+    ) -> Result<EvaluatedValue<'ctx>> {
+        let left_ptr = self.ensure_string_value(lhs)?;
+        let right_ptr = self.ensure_string_value(rhs)?;
+        let result = self.call_ffi_returning_value(
+            "std.strings.concat",
+            vec![left_ptr, right_ptr],
+            "str_concat",
+        )?;
+        Ok(EvaluatedValue::with_value(result, OtterType::Str))
+    }
+
+    fn ensure_string_value(&mut self, value: EvaluatedValue<'ctx>) -> Result<BasicValueEnum<'ctx>> {
+        let EvaluatedValue { ty, value } = value;
+        let base_value = value.ok_or_else(|| anyhow!("expected value for string operation"))?;
+
+        match ty {
+            OtterType::Str => Ok(base_value),
+            OtterType::I64 => {
+                self.call_ffi_returning_value("std.strings.format_int", vec![base_value], "fmt_int")
+            }
+            OtterType::I32 => {
+                let int_val = base_value.into_int_value();
+                let widened = self.builder.build_int_s_extend(
+                    int_val,
+                    self.context.i64_type(),
+                    "i32_to_i64",
+                )?;
+                self.call_ffi_returning_value(
+                    "std.strings.format_int",
+                    vec![widened.into()],
+                    "fmt_int",
+                )
+            }
+            OtterType::F64 => self.call_ffi_returning_value(
+                "std.strings.format_float",
+                vec![base_value],
+                "fmt_float",
+            ),
+            OtterType::Bool => self.call_ffi_returning_value(
+                "std.strings.format_bool",
+                vec![base_value],
+                "fmt_bool",
+            ),
+            _ => bail!("cannot convert {:?} to string", ty),
+        }
+    }
+
+    fn call_ffi_returning_value(
+        &mut self,
+        name: &str,
+        args: Vec<BasicValueEnum<'ctx>>,
+        label: &str,
+    ) -> Result<BasicValueEnum<'ctx>> {
+        let function = self.get_or_declare_ffi_function(name)?;
+        let metadata_args: Vec<BasicMetadataValueEnum> =
+            args.into_iter().map(|arg| arg.into()).collect();
+        let call = self.builder.build_call(function, &metadata_args, label)?;
+        call.try_as_basic_value()
+            .left()
+            .ok_or_else(|| anyhow!("FFI function {name} returned void"))
+    }
+
+    fn try_build_enum_constructor(
+        &mut self,
+        call_expr: &Expr,
+        func_expr: &Expr,
+        args: &[Node<Expr>],
+        ctx: &mut FunctionContext<'ctx>,
+    ) -> Result<Option<EvaluatedValue<'ctx>>> {
+        if let (Expr::Member { field, .. }, Some(enum_type @ TypeInfo::Enum { .. })) =
+            (func_expr, self.expr_type(call_expr).cloned())
+        {
+            let mut evaluated_args = Vec::with_capacity(args.len());
+            for arg in args {
+                evaluated_args.push(self.eval_expr(arg.as_ref(), ctx)?);
+            }
+            let value = self.build_enum_value_from_type(&enum_type, field, evaluated_args)?;
+            return Ok(Some(value));
+        }
+        Ok(None)
+    }
+
+    #[allow(clippy::collapsible_if)]
+    fn try_build_enum_member(
+        &mut self,
+        expr: &Expr,
+        _object: &Expr,
+        field: &str,
+        _ctx: &mut FunctionContext<'ctx>,
+    ) -> Result<Option<EvaluatedValue<'ctx>>> {
+        if let Some(enum_type_ref @ TypeInfo::Enum { variants, .. }) = self.expr_type(expr) {
+            if let Some(variant) = variants.get(field)
+                && variant.fields.is_empty()
+            {
+                let enum_type = enum_type_ref.clone();
+                return Ok(Some(self.build_enum_value_from_type(
+                    &enum_type,
+                    field,
+                    Vec::new(),
+                )?));
+            }
+        }
+        Ok(None)
+    }
+
+    fn build_enum_value_from_type(
+        &mut self,
+        enum_type: &TypeInfo,
+        variant_name: &str,
+        values: Vec<EvaluatedValue<'ctx>>,
+    ) -> Result<EvaluatedValue<'ctx>> {
+        if let TypeInfo::Enum { name, variants, .. } = enum_type {
+            let layout = self
+                .enum_layout(name)
+                .ok_or_else(|| anyhow!("Missing enum layout for {name}"))?;
+            let tag = layout
+                .tag_of(variant_name)
+                .ok_or_else(|| anyhow!("Unknown variant {name}.{variant_name}"))?;
+            let variant_info = variants
+                .get(variant_name)
+                .ok_or_else(|| anyhow!("No variant named {variant_name} for enum {name}"))?;
+            if variant_info.fields.len() != values.len() {
+                bail!(
+                    "enum variant {}.{} expects {} field(s), got {}",
+                    name,
+                    variant_name,
+                    variant_info.fields.len(),
+                    values.len()
+                );
+            }
+
+            self.create_enum_instance(name, variant_name, tag, &variant_info.fields, values)
+        } else {
+            bail!("expected enum type when constructing variant {variant_name}");
+        }
+    }
+
+    fn create_enum_instance(
+        &mut self,
+        _enum_name: &str,
+        _variant_name: &str,
+        tag: u32,
+        field_types: &[TypeInfo],
+        values: Vec<EvaluatedValue<'ctx>>,
+    ) -> Result<EvaluatedValue<'ctx>> {
+        let i64_type = self.context.i64_type();
+        let tag_value = i64_type.const_int(tag as u64, false);
+        let field_count = i64_type.const_int(field_types.len() as u64, false);
+        let create_fn = self.get_or_declare_ffi_function("runtime.enum.create")?;
+        let handle = self
+            .builder
+            .build_call(
+                create_fn,
+                &[tag_value.into(), field_count.into()],
+                "enum_create",
+            )?
+            .try_as_basic_value()
+            .left()
+            .ok_or_else(|| anyhow!("runtime.enum.create returned void"))?;
+
+        for (index, (field_type, value)) in field_types.iter().zip(values.into_iter()).enumerate() {
+            self.store_enum_field(handle, index as u32, field_type, value)?;
+        }
+
+        Ok(EvaluatedValue::with_value(handle, OtterType::Opaque))
+    }
+
+    fn store_enum_field(
+        &mut self,
+        handle: BasicValueEnum<'ctx>,
+        index: u32,
+        field_type: &TypeInfo,
+        value: EvaluatedValue<'ctx>,
+    ) -> Result<()> {
+        let i64_type = self.context.i64_type();
+        let index_val = i64_type.const_int(index as u64, false);
+        let handle_arg: BasicMetadataValueEnum = handle.into();
+        let index_arg: BasicMetadataValueEnum = index_val.into();
+
+        match enum_field_kind(field_type) {
+            EnumFieldKind::Int => {
+                let data = self.value_as_i64(value)?;
+                let setter = self.get_or_declare_ffi_function("runtime.enum.set_i64")?;
+                self.builder.build_call(
+                    setter,
+                    &[handle_arg, index_arg, data.into()],
+                    "enum_set_i64",
+                )?;
+            }
+            EnumFieldKind::Float => {
+                let data = self.value_as_f64(value)?;
+                let setter = self.get_or_declare_ffi_function("runtime.enum.set_f64")?;
+                self.builder.build_call(
+                    setter,
+                    &[handle_arg, index_arg, data.into()],
+                    "enum_set_f64",
+                )?;
+            }
+            EnumFieldKind::Bool => {
+                let data = self.value_as_bool(value)?;
+                let setter = self.get_or_declare_ffi_function("runtime.enum.set_bool")?;
+                self.builder.build_call(
+                    setter,
+                    &[handle_arg, index_arg, data.into()],
+                    "enum_set_bool",
+                )?;
+            }
+            EnumFieldKind::Ptr => {
+                let data = self.value_as_i64(value)?;
+                let setter = self.get_or_declare_ffi_function("runtime.enum.set_ptr")?;
+                self.builder.build_call(
+                    setter,
+                    &[handle_arg, index_arg, data.into()],
+                    "enum_set_ptr",
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn value_as_i64(&mut self, value: EvaluatedValue<'ctx>) -> Result<IntValue<'ctx>> {
+        let raw = value
+            .value
+            .ok_or_else(|| anyhow!("missing value for enum field"))?;
+        let int_value = match value.ty {
+            OtterType::I64 | OtterType::Opaque => raw.into_int_value(),
+            OtterType::I32 => self.builder.build_int_s_extend(
+                raw.into_int_value(),
+                self.context.i64_type(),
+                "i32_to_i64",
+            )?,
+            OtterType::Bool => self.builder.build_int_z_extend(
+                raw.into_int_value(),
+                self.context.i64_type(),
+                "bool_to_i64",
+            )?,
+            OtterType::Str => self.builder.build_ptr_to_int(
+                raw.into_pointer_value(),
+                self.context.i64_type(),
+                "str_ptr_to_int",
+            )?,
+            _ => {
+                bail!("cannot convert {:?} to i64 for enum field", value.ty);
+            }
+        };
+        Ok(int_value)
+    }
+
+    fn value_as_f64(&mut self, value: EvaluatedValue<'ctx>) -> Result<BasicValueEnum<'ctx>> {
+        let raw = value
+            .value
+            .ok_or_else(|| anyhow!("missing value for enum field"))?;
+        let float_value = match value.ty {
+            OtterType::F64 => raw.into_float_value(),
+            OtterType::I64 => self.builder.build_signed_int_to_float(
+                raw.into_int_value(),
+                self.context.f64_type(),
+                "i64_to_f64",
+            )?,
+            OtterType::I32 => self.builder.build_signed_int_to_float(
+                raw.into_int_value(),
+                self.context.f64_type(),
+                "i32_to_f64",
+            )?,
+            _ => {
+                bail!("cannot convert {:?} to f64 for enum field", value.ty);
+            }
+        };
+        Ok(float_value.into())
+    }
+
+    fn value_as_bool(&self, value: EvaluatedValue<'ctx>) -> Result<IntValue<'ctx>> {
+        if value.ty == OtterType::Bool {
+            Ok(value
+                .value
+                .ok_or_else(|| anyhow!("missing bool value for enum field"))?
+                .into_int_value())
+        } else {
+            bail!("expected bool value for enum field, got {:?}", value.ty);
+        }
+    }
+}
+
+enum EnumFieldKind {
+    Int,
+    Float,
+    Bool,
+    Ptr,
+}
+
+fn enum_field_kind(field_type: &TypeInfo) -> EnumFieldKind {
+    match field_type {
+        TypeInfo::Bool => EnumFieldKind::Bool,
+        TypeInfo::I32 | TypeInfo::I64 => EnumFieldKind::Int,
+        TypeInfo::F64 => EnumFieldKind::Float,
+        TypeInfo::Alias { underlying, .. } => enum_field_kind(underlying),
+        _ => EnumFieldKind::Ptr,
     }
 }

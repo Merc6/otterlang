@@ -112,7 +112,7 @@ pub type Response<T> = Result<T, Error>
 
 ### Arithmetic and Comparison
 
-OtterLang supports `+`, `-`, `*`, `/`, and `%`. Comparison operators include `==`, `!=`, `<`, `>`, `<=`, `>=`, `is`, and `is not`.
+OtterLang supports `+`, `-`, `*`, `/`, and `%`. The `+` operator also performs string concatenation, automatically converting integers, floats, and booleans to strings. Comparison operators include `==`, `!=`, `<`, `>`, `<=`, `>=`, `is`, and `is not`.
 
 ```otter
 let normalized = (value - min) / (max - min)

@@ -407,7 +407,7 @@ char* otter_format_bool(bool value) {
     return buffer;
 }
 
-char* otter_concat_strings(const char* s1, const char* s2) {
+char* otter_str_concat(const char* s1, const char* s2) {
     if (!s1 || !s2) return NULL;
     size_t len1 = strlen(s1), len2 = strlen(s2);
     char* result = (char*)malloc(len1 + len2 + 1);
@@ -949,7 +949,7 @@ char* otter_format_bool(bool value) {
     return otter_dup_cstr(value ? "true" : "false");
 }
 
-char* otter_concat_strings(const char* s1, const char* s2) {
+char* otter_str_concat(const char* s1, const char* s2) {
     if (!s1 || !s2) return NULL;
     size_t len1 = strlen(s1), len2 = strlen(s2);
     char* result = (char*)malloc(len1 + len2 + 1);
@@ -1176,7 +1176,7 @@ char* otter_format_bool(bool value) {
     return buffer;
 }
 
-char* otter_concat_strings(const char* s1, const char* s2) {
+char* otter_str_concat(const char* s1, const char* s2) {
     if (!s1 || !s2) return NULL;
     size_t len1 = strlen(s1), len2 = strlen(s2);
     char* result = (char*)malloc(len1 + len2 + 1);

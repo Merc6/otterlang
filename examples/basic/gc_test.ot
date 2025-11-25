@@ -1,0 +1,5 @@
+fn main():
+    let ptr = gc.alloc(100)
+    gc.add_root(ptr)
+    gc.remove_root(ptr)
+    print("Allocated memory and managed roots")

@@ -33,13 +33,14 @@ pub extern "C" fn otter_format_bool(value: bool) -> *mut c_char {
         .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
-/// Concatenate two strings
+/// Concatenate two strings.
 ///
 /// # Safety
 ///
-/// this function dereferences a raw pointer
+/// The input pointers must be valid UTF-8 strings allocated by the host or
+/// runtime. Returned strings must be released with `otter_free_string`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otter_concat_strings(s1: *const c_char, s2: *const c_char) -> *mut c_char {
+pub unsafe extern "C" fn otter_str_concat(s1: *const c_char, s2: *const c_char) -> *mut c_char {
     if s1.is_null() || s2.is_null() {
         return std::ptr::null_mut();
     }
@@ -137,7 +138,7 @@ fn register_string_functions(registry: &SymbolRegistry) {
 
     registry.register(FfiFunction {
         name: "std.strings.concat".into(),
-        symbol: "otter_concat_strings".into(),
+        symbol: "otter_str_concat".into(),
         signature: FfiSignature::new(vec![FfiType::Str, FfiType::Str], FfiType::Str),
     });
 
@@ -198,7 +199,7 @@ mod tests {
     fn test_concat_strings() {
         let s1 = CString::new("Hello ").unwrap();
         let s2 = CString::new("World").unwrap();
-        let result = unsafe { otter_concat_strings(s1.as_ptr(), s2.as_ptr()) };
+        let result = unsafe { otter_str_concat(s1.as_ptr(), s2.as_ptr()) };
         assert!(!result.is_null());
         unsafe {
             let s = CStr::from_ptr(result).to_str().unwrap();

@@ -1802,6 +1802,33 @@ fn register_builtin_symbols(registry: &SymbolRegistry) {
         symbol: "otter_builtin_task_ready".into(),
         signature: FfiSignature::new(vec![FfiType::Opaque], FfiType::Bool),
     });
+    // GC functions
+    registry.register(FfiFunction {
+        name: "gc.alloc".into(),
+        symbol: "otter_alloc".into(),
+        signature: FfiSignature {
+            params: vec![FfiType::I64], // size
+            result: FfiType::Opaque,    // ptr
+        },
+    });
+
+    registry.register(FfiFunction {
+        name: "gc.add_root".into(),
+        symbol: "otter_gc_add_root".into(),
+        signature: FfiSignature {
+            params: vec![FfiType::Opaque], // ptr
+            result: FfiType::Unit,
+        },
+    });
+
+    registry.register(FfiFunction {
+        name: "gc.remove_root".into(),
+        symbol: "otter_gc_remove_root".into(),
+        signature: FfiSignature {
+            params: vec![FfiType::Opaque], // ptr
+            result: FfiType::Unit,
+        },
+    });
 }
 
 inventory::submit! {

@@ -8,4 +8,4 @@ pub mod types;
 
 pub use checker::TypeChecker;
 pub use diagnostics::from_type_errors as diagnostics_from_type_errors;
-pub use types::{TypeContext, TypeError, TypeInfo};
+pub use types::{EnumLayout, TypeContext, TypeError, TypeInfo};

@@ -1,11 +1,20 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::codegen::CodegenBackendType;
-use crate::codegen::target::TargetTriple;
+use crate::codegen::TargetTriple;
 use inkwell::OptimizationLevel;
 use inkwell::targets::TargetTriple as LlvmTargetTriple;
 
+/// Codegen optimization level
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CodegenOptLevel {
+    None,
+    Default,
+    Aggressive,
+}
+
+/// Codegen options
+#[derive(Debug, Clone)]
 pub struct CodegenOptions {
     pub emit_ir: bool,
     pub opt_level: CodegenOptLevel,
@@ -15,8 +24,6 @@ pub struct CodegenOptions {
     pub inline_threshold: Option<u32>,
     /// Target triple for cross-compilation (defaults to native)
     pub target: Option<TargetTriple>,
-    /// Codegen backend to use
-    pub backend: CodegenBackendType,
 }
 
 impl Default for CodegenOptions {
@@ -27,18 +34,10 @@ impl Default for CodegenOptions {
             enable_lto: false,
             enable_pgo: false,
             pgo_profile_file: None,
-            inline_threshold: None,            // Use LLVM default
-            target: None,                      // Use native target
-            backend: CodegenBackendType::LLVM, // Default to LLVM for compatibility
+            inline_threshold: None,
+            target: None,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum CodegenOptLevel {
-    None,
-    Default,
-    Aggressive,
 }
 
 impl From<CodegenOptLevel> for OptimizationLevel {

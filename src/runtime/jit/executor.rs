@@ -1,31 +1,31 @@
-use crate::codegen::CodegenBackendType;
+use crate::runtime::jit::engine::JitEngine;
 use crate::runtime::symbol_registry::SymbolRegistry;
 use anyhow::Result;
 use ast::nodes::Program;
 
-use super::engine::JitEngine;
-
-/// JIT executor that coordinates program execution
+/// Simplified JIT executor for running programs
 pub struct JitExecutor {
     engine: JitEngine,
-    #[allow(dead_code)]
-    program: Program,
 }
 
 impl JitExecutor {
-    pub fn new(program: Program, symbol_registry: &'static SymbolRegistry) -> Result<Self> {
-        Self::new_with_backend(program, symbol_registry, CodegenBackendType::LLVM)
+    /// Create a new JIT executor with default LLVM backend
+    pub fn new(
+        program: &Program,
+        symbol_registry: &'static SymbolRegistry,
+    ) -> anyhow::Result<Self> {
+        Self::new_with_backend(program, symbol_registry)
     }
 
+    /// Create a new JIT executor with specified backend
     pub fn new_with_backend(
-        program: Program,
+        program: &Program,
         symbol_registry: &'static SymbolRegistry,
-        backend: CodegenBackendType,
-    ) -> Result<Self> {
-        let mut engine = JitEngine::new_with_backend(symbol_registry, backend)?;
-        engine.compile_program(&program)?;
+    ) -> anyhow::Result<Self> {
+        let mut engine = JitEngine::new_with_backend(symbol_registry)?;
+        engine.compile_program(program)?;
 
-        Ok(Self { engine, program })
+        Ok(Self { engine })
     }
 
     /// Execute the main function

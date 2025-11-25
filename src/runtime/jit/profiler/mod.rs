@@ -1,10 +1,14 @@
 // Runtime Profiling Infrastructure
 pub mod call_profiler;
+pub mod compilation_profiler;
 pub mod hot_detector;
+pub mod memory_profiler;
 pub mod sampler;
 
 pub use call_profiler::CallProfiler;
+pub use compilation_profiler::{CompilationProfiler, CompilationTimer};
 pub use hot_detector::{HotDetector, HotFunction};
+pub use memory_profiler::MemoryProfiler;
 pub use sampler::Sampler;
 
 use parking_lot::RwLock;

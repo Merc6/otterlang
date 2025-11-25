@@ -8,8 +8,7 @@ use clap::{Parser, Subcommand};
 use tracing::{debug, info, warn};
 
 use crate::codegen::{
-    self, BuildArtifact, CodegenBackendType, CodegenOptLevel, CodegenOptions, TargetTriple,
-    build_executable_with_backend,
+    self, BuildArtifact, CodegenOptLevel, CodegenOptions, TargetTriple, build_executable,
 };
 use crate::runtime::ffi;
 use crate::runtime::symbol_registry::SymbolRegistry;
@@ -25,23 +24,6 @@ use std::collections::{HashMap, HashSet};
 use utils::errors::{Diagnostic, emit_diagnostics};
 use utils::logger;
 use utils::profiler::{PhaseTiming, Profiler};
-
-#[derive(clap::ValueEnum, Clone, Debug)]
-pub enum CodegenBackend {
-    LLVM,
-    #[cfg(feature = "cranelift-backend")]
-    Cranelift,
-}
-
-impl From<CodegenBackend> for CodegenBackendType {
-    fn from(backend: CodegenBackend) -> Self {
-        match backend {
-            CodegenBackend::LLVM => CodegenBackendType::LLVM,
-            #[cfg(feature = "cranelift-backend")]
-            CodegenBackend::Cranelift => CodegenBackendType::Cranelift,
-        }
-    }
-}
 
 #[derive(Parser, Debug)]
 #[command(name = "otter", version = VERSION, about = "OtterLang compiler")]
@@ -97,10 +79,6 @@ pub struct OtterCli {
     #[arg(long, global = true)]
     /// Target triple for cross-compilation (e.g., wasm32-unknown-unknown, thumbv7m-none-eabi)
     target: Option<String>,
-
-    #[arg(long, global = true, value_enum, default_value = "llvm")]
-    /// Codegen backend to use (llvm or cranelift)
-    codegen: CodegenBackend,
 
     #[command(subcommand)]
     command: Command,
@@ -357,6 +335,7 @@ pub fn compile_pipeline(
         return Err(err).with_context(|| "type checking failed");
     }
 
+    let enum_layouts = type_checker.enum_layouts();
     let expr_types = type_checker.into_expr_type_map();
 
     // Update inputs with module dependencies for accurate cache fingerprinting
@@ -393,7 +372,13 @@ pub fn compile_pipeline(
     };
 
     let artifact = profiler.record_phase("Codegen", || {
-        build_executable_with_backend(&program, &expr_types, &binary_path, &codegen_options)
+        build_executable(
+            &program,
+            &expr_types,
+            &enum_layouts,
+            &binary_path,
+            &codegen_options,
+        )
     })?;
 
     let build_duration_ms = profiler
@@ -468,7 +453,6 @@ pub struct CompilationSettings {
     tasks_trace: bool,
     debug: bool,
     target: Option<String>,
-    codegen: CodegenBackend,
     no_cache: bool,
     enable_cache: bool,
     cache_dir: PathBuf,
@@ -491,7 +475,6 @@ impl CompilationSettings {
             tasks_trace: cli.tasks_trace,
             debug: cli.debug,
             target: cli.target.clone(),
-            codegen: cli.codegen.clone(),
             no_cache: cli.no_cache,
             enable_cache: !cli.no_cache,
             cache_dir: PathBuf::from("./cache"),
@@ -536,7 +519,6 @@ impl CompilationSettings {
             pgo_profile_file: None,
             inline_threshold: None,
             target,
-            backend: self.codegen.clone().into(),
         }
     }
 
