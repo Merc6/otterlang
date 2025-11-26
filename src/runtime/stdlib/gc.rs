@@ -38,24 +38,36 @@ pub unsafe extern "C" fn otter_gc_remove_root(ptr: *mut u8) {
 }
 
 /// Enable garbage collection. Returns previous GC state.
+///
+/// # Safety
+/// This function is safe to call from any context.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_gc_enable() -> bool {
     get_gc().enable()
 }
 
 /// Disable garbage collection. Returns previous GC state.
+///
+/// # Safety
+/// This function is safe to call from any context.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_gc_disable() -> bool {
     get_gc().disable()
 }
 
 /// Query whether garbage collection is currently enabled.
+///
+/// # Safety
+/// This function is safe to call from any context.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_gc_is_enabled() -> bool {
     get_gc().is_enabled()
 }
 
 /// Create a dedicated arena allocator and return its handle.
+///
+/// # Safety
+/// This function is safe to call from any context. The returned handle must be properly managed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_arena_create(capacity: i64) -> u64 {
     let capacity = if capacity <= 0 {
@@ -67,12 +79,23 @@ pub unsafe extern "C" fn otter_arena_create(capacity: i64) -> u64 {
 }
 
 /// Destroy a previously created arena.
+///
+/// # Safety
+/// The handle must be a valid arena handle returned by `otter_arena_create`.
+/// After calling this function, the handle becomes invalid and must not be used.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_arena_destroy(handle: u64) -> bool {
     arena::destroy_arena(handle)
 }
 
 /// Allocate bytes from an arena.
+///
+/// # Safety
+/// - The handle must be a valid arena handle returned by `otter_arena_create`.
+/// - The returned pointer is valid until the arena is destroyed or reset.
+/// - The caller is responsible for not accessing the pointer after arena destruction/reset.
+/// - The allocated memory is uninitialized and must be properly initialized before use.
+/// - Size and alignment must be reasonable (size > 0, alignment is a power of 2).
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_arena_alloc(handle: u64, size: i64, align: i64) -> *mut u8 {
     if size <= 0 {
@@ -83,6 +106,11 @@ pub unsafe extern "C" fn otter_arena_alloc(handle: u64, size: i64, align: i64) -
 }
 
 /// Reset an arena, freeing all allocations at once.
+///
+/// # Safety
+/// - The handle must be a valid arena handle returned by `otter_arena_create`.
+/// - After calling this function, all pointers previously returned by `otter_arena_alloc`
+///   for this arena become invalid and must not be accessed.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otter_arena_reset(handle: u64) -> bool {
     arena::reset_arena(handle)
