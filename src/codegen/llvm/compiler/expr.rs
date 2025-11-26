@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow, bail};
-use inkwell::IntPredicate;
 use inkwell::types::BasicTypeEnum;
+use inkwell::AddressSpace;
+use inkwell::IntPredicate;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue};
 
 use crate::codegen::llvm::compiler::Compiler;
@@ -18,13 +19,14 @@ impl<'ctx> Compiler<'ctx> {
             Expr::Literal(lit) => self.eval_literal(lit.as_ref()),
             Expr::Identifier(name) => {
                 if let Some(var) = ctx.get(name) {
-                    if let Some(basic_ty) = self.basic_type(var.ty)? {
+                    let var_ty = var.ty.clone();
+                    if let Some(basic_ty) = self.basic_type(var_ty.clone())? {
                         let val = self.builder.build_load(basic_ty, var.ptr, name)?;
-                        Ok(EvaluatedValue::with_value(val, var.ty))
+                        Ok(EvaluatedValue::with_value(val, var_ty))
                     } else {
                         // Unit type - no value to load
                         Ok(EvaluatedValue {
-                            ty: OtterType::Unit,
+                            ty: var_ty,
                             value: None,
                         })
                     }
@@ -56,7 +58,8 @@ impl<'ctx> Compiler<'ctx> {
                     if object_value.value.is_none() {
                         bail!("cannot access field '{}' without value", field);
                     }
-                    if let OtterType::Struct(struct_id) = object_value.ty {
+                    let object_ty = object_value.ty.clone();
+                    if let OtterType::Struct(struct_id) = object_ty {
                         let struct_value = object_value.value.unwrap().into_struct_value();
                         let info = self.struct_info(struct_id);
                         let idx = info.field_indices.get(field).copied().ok_or_else(|| {
@@ -66,12 +69,12 @@ impl<'ctx> Compiler<'ctx> {
                             .builder
                             .build_extract_value(struct_value, idx as u32, field)
                             .map_err(|e| anyhow!("failed to extract field '{}': {e}", field))?;
-                        let field_ty = info.field_types[idx];
+                        let field_ty = info.field_types[idx].clone();
                         Ok(EvaluatedValue::with_value(extracted, field_ty))
                     } else {
                         bail!(
                             "Complex member expressions not yet supported (expr, ty={:?})",
-                            object_value.ty
+                            object_ty
                         );
                     }
                 }
@@ -98,9 +101,10 @@ impl<'ctx> Compiler<'ctx> {
                         .ok_or_else(|| anyhow!("field '{}' produced no value", field_name))?;
                     let expected_ty = {
                         let info = self.struct_info(struct_id);
-                        info.field_types[idx]
+                        info.field_types[idx].clone()
                     };
-                    let coerced = self.coerce_type(raw_value, field_value.ty, expected_ty)?;
+                    let coerced =
+                        self.coerce_type(raw_value, field_value.ty.clone(), expected_ty)?;
                     aggregate = self
                         .builder
                         .build_insert_value(aggregate, coerced, idx as u32, field_name)
@@ -246,7 +250,9 @@ impl<'ctx> Compiler<'ctx> {
                     .unwrap()
                     .get_parent()
                     .unwrap();
-                let alloca = self.create_entry_block_alloca(function, name, matched_val.ty)?;
+                let matched_ty = matched_val.ty.clone();
+                let alloca =
+                    self.create_entry_block_alloca(function, name, matched_ty.clone())?;
 
                 if let Some(v) = matched_val.value {
                     self.builder.build_store(alloca, v)?;
@@ -256,7 +262,7 @@ impl<'ctx> Compiler<'ctx> {
                     name.clone(),
                     crate::codegen::llvm::compiler::types::Variable {
                         ptr: alloca,
-                        ty: matched_val.ty,
+                        ty: matched_ty,
                     },
                 );
 
@@ -479,7 +485,8 @@ impl<'ctx> Compiler<'ctx> {
         lhs: &EvaluatedValue<'ctx>,
         rhs: &EvaluatedValue<'ctx>,
     ) -> Result<IntValue<'ctx>> {
-        match lhs.ty {
+        let lhs_ty = lhs.ty.clone();
+        match lhs_ty {
             OtterType::I64 => {
                 let l = lhs.value.unwrap().into_int_value();
                 let r = rhs.value.unwrap().into_int_value();
@@ -514,7 +521,7 @@ impl<'ctx> Compiler<'ctx> {
                     .into_int_value();
                 Ok(res)
             }
-            _ => bail!("Equality check not implemented for type {:?}", lhs.ty),
+            _ => bail!("Equality check not implemented for type {:?}", lhs_ty),
         }
     }
 
@@ -604,12 +611,14 @@ impl<'ctx> Compiler<'ctx> {
     ) -> Result<EvaluatedValue<'ctx>> {
         let lhs = self.eval_expr(left, ctx)?;
         let rhs = self.eval_expr(right, ctx)?;
+        let lhs_ty = lhs.ty.clone();
+        let rhs_ty = rhs.ty.clone();
 
-        if matches!(op, BinaryOp::Add) && (lhs.ty == OtterType::Str || rhs.ty == OtterType::Str) {
+        if matches!(op, BinaryOp::Add) && (lhs_ty == OtterType::Str || rhs_ty == OtterType::Str) {
             return self.build_string_concat(lhs, rhs);
         }
 
-        if lhs.ty == OtterType::Str && rhs.ty == OtterType::Str {
+        if lhs_ty == OtterType::Str && rhs_ty == OtterType::Str {
             return match op {
                 BinaryOp::Eq
                 | BinaryOp::Ne
@@ -678,39 +687,39 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         // Coerce types if needed - promote to F64 if either operand is F64
-        let (lhs_val, rhs_val, result_ty) = if lhs.ty == OtterType::F64 || rhs.ty == OtterType::F64
+        let (lhs_val, rhs_val, result_ty) = if lhs_ty == OtterType::F64 || rhs_ty == OtterType::F64
         {
             // Promote both to F64
-            let l_f64 = if lhs.ty == OtterType::F64 {
+            let l_f64 = if lhs_ty == OtterType::F64 {
                 lhs.value.unwrap().into_float_value()
-            } else if lhs.ty == OtterType::I64 {
+            } else if lhs_ty == OtterType::I64 {
                 let int_val = lhs.value.unwrap().into_int_value();
                 self.builder
                     .build_signed_int_to_float(int_val, self.context.f64_type(), "itof")?
             } else {
-                bail!("Cannot coerce {:?} to F64", lhs.ty);
+                bail!("Cannot coerce {:?} to F64", lhs_ty);
             };
 
-            let r_f64 = if rhs.ty == OtterType::F64 {
+            let r_f64 = if rhs_ty == OtterType::F64 {
                 rhs.value.unwrap().into_float_value()
-            } else if rhs.ty == OtterType::I64 {
+            } else if rhs_ty == OtterType::I64 {
                 let int_val = rhs.value.unwrap().into_int_value();
                 self.builder
                     .build_signed_int_to_float(int_val, self.context.f64_type(), "itof")?
             } else {
-                bail!("Cannot coerce {:?} to F64", rhs.ty);
+                bail!("Cannot coerce {:?} to F64", rhs_ty);
             };
 
             (l_f64.into(), r_f64.into(), OtterType::F64)
-        } else if lhs.ty == OtterType::I64 && rhs.ty == OtterType::I64 {
+        } else if lhs_ty == OtterType::I64 && rhs_ty == OtterType::I64 {
             (lhs.value.unwrap(), rhs.value.unwrap(), OtterType::I64)
-        } else if lhs.ty == OtterType::Bool && rhs.ty == OtterType::Bool {
+        } else if lhs_ty == OtterType::Bool && rhs_ty == OtterType::Bool {
             (lhs.value.unwrap(), rhs.value.unwrap(), OtterType::Bool)
         } else {
             bail!(
                 "Type mismatch or unsupported types for binary op: {:?} and {:?}",
-                lhs.ty,
-                rhs.ty
+                lhs_ty,
+                rhs_ty
             );
         };
 
@@ -847,13 +856,14 @@ impl<'ctx> Compiler<'ctx> {
         let val = self.eval_expr(expr, ctx)?;
         match op {
             UnaryOp::Neg => {
-                if val.ty == OtterType::I64 {
+                let val_ty = val.ty.clone();
+                if val_ty == OtterType::I64 {
                     let v = val.value.unwrap().into_int_value();
                     Ok(EvaluatedValue::with_value(
                         self.builder.build_int_neg(v, "neg")?.into(),
                         OtterType::I64,
                     ))
-                } else if val.ty == OtterType::F64 {
+                } else if val_ty == OtterType::F64 {
                     let v = val.value.unwrap().into_float_value();
                     Ok(EvaluatedValue::with_value(
                         self.builder.build_float_neg(v, "neg")?.into(),
@@ -864,7 +874,8 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
             UnaryOp::Not => {
-                if val.ty == OtterType::Bool {
+                let val_ty = val.ty.clone();
+                if val_ty == OtterType::Bool {
                     let v = val.value.unwrap().into_int_value();
                     Ok(EvaluatedValue::with_value(
                         self.builder.build_not(v, "not")?.into(),
@@ -889,12 +900,24 @@ impl<'ctx> Compiler<'ctx> {
             OtterType::List => Ok(Some(self.context.i64_type().into())),
             OtterType::Map => Ok(Some(self.context.i64_type().into())),
             OtterType::Struct(id) => Ok(Some(self.struct_info(id).ty.into())),
+            OtterType::Tuple(fields) => {
+                let mut llvm_fields = Vec::with_capacity(fields.len());
+                for field in fields {
+                    let llvm_ty = match self.basic_type(field)? {
+                        Some(ty) => ty,
+                        None => self.context.i8_type().into(),
+                    };
+                    llvm_fields.push(llvm_ty);
+                }
+                Ok(Some(self.context.struct_type(&llvm_fields, false).into()))
+            }
         }
     }
 
     pub(crate) fn to_bool_value(&self, val: EvaluatedValue<'ctx>) -> Result<IntValue<'ctx>> {
-        if val.ty == OtterType::Bool {
-            Ok(val.value.unwrap().into_int_value())
+        let EvaluatedValue { ty, value } = val;
+        if ty == OtterType::Bool {
+            Ok(value.unwrap().into_int_value())
         } else {
             bail!("Expected boolean value")
         }
@@ -912,7 +935,7 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         // Perform type coercion based on source and target types
-        match (from_ty, to_ty) {
+        match (from_ty.clone(), to_ty.clone()) {
             // Numeric conversions
             (OtterType::I32, OtterType::I64) => {
                 let int_val = value.into_int_value();
@@ -986,9 +1009,7 @@ impl<'ctx> Compiler<'ctx> {
             }
 
             // Incompatible types
-            _ => {
-                bail!("Cannot coerce type {:?} to {:?}", from_ty, to_ty)
-            }
+            _ => bail!("Cannot coerce type {:?} to {:?}", from_ty, to_ty),
         }
     }
 
@@ -1004,6 +1025,28 @@ impl<'ctx> Compiler<'ctx> {
                 .builder
                 .build_float_to_signed_int(float_val, param_type.into_int_type(), "ftoi")?
                 .into())
+        } else if value.get_type() != *param_type
+            && value.get_type().is_struct_type()
+            && param_type.is_struct_type()
+        {
+            // Repack aggregates whose LLVM struct names don't match (e.g., named Otter structs
+            // passed to anonymous FFI structs).
+            let current_function = self
+                .builder
+                .get_insert_block()
+                .and_then(|bb| bb.get_parent())
+                .ok_or_else(|| anyhow!("Cannot determine current function for argument cast"))?;
+            let tmp = self.create_entry_block_alloca(current_function, "struct_cast", from_ty)?;
+            self.builder.build_store(tmp, value)?;
+            let generic_ptr = self.context.ptr_type(AddressSpace::default());
+            let cast_ptr = self
+                .builder
+                .build_bit_cast(tmp, generic_ptr, "struct_cast_ptr")?
+                .into_pointer_value();
+            let loaded = self
+                .builder
+                .build_load(*param_type, cast_ptr, "struct_cast_load")?;
+            Ok(loaded)
         } else {
             Ok(value)
         }
@@ -1060,7 +1103,7 @@ impl<'ctx> Compiler<'ctx> {
                         if evaluated.value.is_none() {
                             bail!("cannot call member '{}' without value", field);
                         }
-                        if let OtterType::Struct(struct_id) = evaluated.ty {
+                        if let OtterType::Struct(struct_id) = evaluated.ty.clone() {
                             if let Some(method_name) =
                                 self.resolve_struct_method_name(struct_id, field)
                             {
@@ -1105,9 +1148,9 @@ impl<'ctx> Compiler<'ctx> {
                     .value
                     .ok_or_else(|| anyhow!("Cannot pass unit value as self"))?;
                 let param_type = param_types
-                    .get(0)
+                    .first()
                     .ok_or_else(|| anyhow!("Method '{}' missing self parameter", func_name))?;
-                let converted = self.cast_argument_for_call(v, self_arg.ty, param_type)?;
+                let converted = self.cast_argument_for_call(v, self_arg.ty.clone(), param_type)?;
                 arg_values.push(converted.into());
                 param_offset = 1;
             }
@@ -1118,7 +1161,8 @@ impl<'ctx> Compiler<'ctx> {
                     let param_type = param_types
                         .get(i + param_offset)
                         .ok_or_else(|| anyhow!("Too many arguments for function {}", func_name))?;
-                    let converted = self.cast_argument_for_call(v, arg_val.ty, param_type)?;
+                    let converted =
+                        self.cast_argument_for_call(v, arg_val.ty.clone(), param_type)?;
                     arg_values.push(converted.into());
                 } else {
                     bail!("Cannot pass unit value as argument");
@@ -1211,8 +1255,11 @@ impl<'ctx> Compiler<'ctx> {
             self.builder.position_at_end(merge_bb);
 
             // If both branches return the same type and have values, create a phi node
-            if then_val.ty == else_val.ty && then_val.value.is_some() && else_val.value.is_some() {
-                if let Some(basic_ty) = self.basic_type(then_val.ty)? {
+            let then_ty = then_val.ty.clone();
+            let else_ty = else_val.ty.clone();
+
+            if then_ty == else_ty && then_val.value.is_some() && else_val.value.is_some() {
+                if let Some(basic_ty) = self.basic_type(then_ty.clone())? {
                     let phi = self.builder.build_phi(basic_ty, "if_result")?;
                     phi.add_incoming(&[
                         (&then_val.value.unwrap(), then_bb_end),
@@ -1220,7 +1267,7 @@ impl<'ctx> Compiler<'ctx> {
                     ]);
                     Ok(EvaluatedValue::with_value(
                         phi.as_basic_value(),
-                        then_val.ty,
+                        then_ty,
                     ))
                 } else {
                     // Unit type
@@ -1348,7 +1395,7 @@ impl<'ctx> Compiler<'ctx> {
 
             let field_types: Vec<TypeInfo> = evaluated_args
                 .iter()
-                .map(|val| match val.ty {
+                .map(|val| match val.ty.clone() {
                     OtterType::I64 => TypeInfo::I64,
                     OtterType::F64 => TypeInfo::F64,
                     OtterType::Bool => TypeInfo::Bool,
@@ -1547,10 +1594,9 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     fn value_as_i64(&mut self, value: EvaluatedValue<'ctx>) -> Result<IntValue<'ctx>> {
-        let raw = value
-            .value
-            .ok_or_else(|| anyhow!("missing value for enum field"))?;
-        let int_value = match value.ty {
+        let EvaluatedValue { ty, value } = value;
+        let raw = value.ok_or_else(|| anyhow!("missing value for enum field"))?;
+        let int_value = match ty {
             OtterType::I64 | OtterType::Opaque => raw.into_int_value(),
             OtterType::I32 => self.builder.build_int_s_extend(
                 raw.into_int_value(),
@@ -1568,17 +1614,16 @@ impl<'ctx> Compiler<'ctx> {
                 "str_ptr_to_int",
             )?,
             _ => {
-                bail!("cannot convert {:?} to i64 for enum field", value.ty);
+                bail!("cannot convert {:?} to i64 for enum field", ty);
             }
         };
         Ok(int_value)
     }
 
     fn value_as_f64(&mut self, value: EvaluatedValue<'ctx>) -> Result<BasicValueEnum<'ctx>> {
-        let raw = value
-            .value
-            .ok_or_else(|| anyhow!("missing value for enum field"))?;
-        let float_value = match value.ty {
+        let EvaluatedValue { ty, value } = value;
+        let raw = value.ok_or_else(|| anyhow!("missing value for enum field"))?;
+        let float_value = match ty {
             OtterType::F64 => raw.into_float_value(),
             OtterType::I64 => self.builder.build_signed_int_to_float(
                 raw.into_int_value(),
@@ -1591,20 +1636,20 @@ impl<'ctx> Compiler<'ctx> {
                 "i32_to_f64",
             )?,
             _ => {
-                bail!("cannot convert {:?} to f64 for enum field", value.ty);
+                bail!("cannot convert {:?} to f64 for enum field", ty);
             }
         };
         Ok(float_value.into())
     }
 
     fn value_as_bool(&self, value: EvaluatedValue<'ctx>) -> Result<IntValue<'ctx>> {
-        if value.ty == OtterType::Bool {
+        let EvaluatedValue { ty, value } = value;
+        if ty == OtterType::Bool {
             Ok(value
-                .value
                 .ok_or_else(|| anyhow!("missing bool value for enum field"))?
                 .into_int_value())
         } else {
-            bail!("expected bool value for enum field, got {:?}", value.ty);
+            bail!("expected bool value for enum field, got {:?}", ty);
         }
     }
 }

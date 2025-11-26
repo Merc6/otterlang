@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 use inkwell::values::FunctionValue;
 
 use crate::codegen::llvm::compiler::Compiler;
-use crate::codegen::llvm::compiler::types::{FunctionContext, OtterType, Variable};
+use crate::codegen::llvm::compiler::types::{EvaluatedValue, FunctionContext, OtterType, Variable};
 use ast::nodes::{Block, Expr, Statement};
 
 struct IteratorRuntime<'ctx> {
@@ -57,9 +57,13 @@ impl<'ctx> Compiler<'ctx> {
                 public: _,
             } => {
                 let val = self.eval_expr(expr.as_ref(), ctx)?;
+                let EvaluatedValue {
+                    ty: val_ty,
+                    value: val_value,
+                } = val;
 
                 // Skip allocation for Unit types
-                if let Some(_basic_ty) = self.basic_type(val.ty)? {
+                if let Some(_basic_ty) = self.basic_type(val_ty.clone())? {
                     // Use create_entry_block_alloca to ensure alloca is in the entry block
                     // This prevents stack overflow in loops and ensures dominance
                     let function = self
@@ -68,15 +72,19 @@ impl<'ctx> Compiler<'ctx> {
                         .unwrap()
                         .get_parent()
                         .unwrap();
-                    let alloca = self.create_entry_block_alloca(function, name.as_ref(), val.ty)?;
-                    if let Some(v) = val.value {
+                    let alloca = self.create_entry_block_alloca(
+                        function,
+                        name.as_ref(),
+                        val_ty.clone(),
+                    )?;
+                    if let Some(v) = val_value {
                         self.builder.build_store(alloca, v)?;
                     }
                     ctx.insert(
                         name.as_ref().to_string(),
                         Variable {
                             ptr: alloca,
-                            ty: val.ty,
+                            ty: val_ty,
                         },
                     );
                 }
@@ -85,12 +93,17 @@ impl<'ctx> Compiler<'ctx> {
             }
             Statement::Assignment { name, expr } => {
                 let val = self.eval_expr(expr.as_ref(), ctx)?;
+                let EvaluatedValue {
+                    ty: val_ty,
+                    value: val_value,
+                } = val;
                 if let Some(var) = ctx.get(name.as_ref()) {
-                    if let Some(v) = val.value {
+                    if let Some(v) = val_value {
                         // Type checking and coercion
-                        let coerced_val = self.coerce_type(v, val.ty, var.ty)?;
+                        let coerced_val =
+                            self.coerce_type(v, val_ty.clone(), var.ty.clone())?;
                         self.builder.build_store(var.ptr, coerced_val)?;
-                    } else if val.ty != OtterType::Unit {
+                    } else if val_ty != OtterType::Unit {
                         bail!(
                             "Cannot assign non-unit expression with no value to variable {}",
                             name.as_ref()
@@ -289,9 +302,10 @@ impl<'ctx> Compiler<'ctx> {
             // Evaluate start and end
             let start_val = self.eval_expr(start.as_ref().as_ref(), ctx)?;
             let end_val = self.eval_expr(end.as_ref().as_ref(), ctx)?;
+            let start_ty = start_val.ty.clone();
 
             // Determine if we're using I64 or F64 iterators
-            let is_float = start_val.ty == OtterType::F64;
+            let is_float = start_ty == OtterType::F64;
 
             // Get runtime iterator functions (copy to avoid borrow issues)
             let (iter_create_fn, iter_has_next_fn, iter_next_fn, iter_free_fn) = if is_float {
@@ -350,13 +364,14 @@ impl<'ctx> Compiler<'ctx> {
                 .unwrap();
 
             // Create loop variable
-            let loop_var_alloca = self.create_entry_block_alloca(function, var, start_val.ty)?;
+            let loop_var_alloca =
+                self.create_entry_block_alloca(function, var, start_ty.clone())?;
 
             ctx.insert(
                 var.to_string(),
                 Variable {
                     ptr: loop_var_alloca,
-                    ty: start_val.ty,
+                    ty: start_ty,
                 },
             );
 
@@ -419,8 +434,9 @@ impl<'ctx> Compiler<'ctx> {
         } else {
             // Handle other iterable types (arrays, strings, etc.)
             let iterable_val = self.eval_expr(iterable, ctx)?;
+            let iterable_ty = iterable_val.ty.clone();
 
-            match iterable_val.ty {
+            match iterable_ty {
                 OtterType::Str => {
                     // String iteration (character by character)
                     let (iter_create_fn, iter_has_next_fn, iter_next_fn, iter_free_fn) = (
@@ -513,12 +529,7 @@ impl<'ctx> Compiler<'ctx> {
                     // Map iteration is not yet implemented
                     bail!("Map iteration is not yet supported")
                 }
-                _ => {
-                    bail!(
-                        "For loops over type {:?} are not supported yet",
-                        iterable_val.ty
-                    )
-                }
+                _ => bail!("For loops over type {:?} are not supported yet", iterable_ty),
             }
         }
     }
@@ -556,14 +567,15 @@ impl<'ctx> Compiler<'ctx> {
             .into_pointer_value();
 
         // Create loop variable allocation
-        let var_alloca = self.create_entry_block_alloca(function, var, element_type)?;
+        let element_ty = element_type.clone();
+        let var_alloca = self.create_entry_block_alloca(function, var, element_ty.clone())?;
 
         // Insert variable into context
         ctx.insert(
             var.to_string(),
             Variable {
                 ptr: var_alloca,
-                ty: element_type,
+                ty: element_ty,
             },
         );
 

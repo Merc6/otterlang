@@ -2,7 +2,7 @@ use inkwell::basic_block::BasicBlock;
 use inkwell::values::{BasicValueEnum, PointerValue};
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OtterType {
     Unit,
     Bool,
@@ -14,6 +14,7 @@ pub enum OtterType {
     List,
     Map,
     Struct(u32),
+    Tuple(Vec<OtterType>),
 }
 
 #[derive(Debug, Clone)]

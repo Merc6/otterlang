@@ -135,25 +135,24 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     pub(crate) fn struct_type_from_expr(&self, expr: &Expr) -> Option<OtterType> {
-        if let Some(ty) = self.expr_type(expr) {
-            if let TypeInfo::Struct { name, .. } = ty {
-                if let Some(id) = self.struct_id(name) {
-                    return Some(OtterType::Struct(id));
-                }
-            }
+        if let Some(TypeInfo::Struct { name, .. }) = self.expr_type(expr) {
+            return self.struct_id(name).map(OtterType::Struct);
         }
         None
     }
 
     fn rewrite_method_self_param(&self, method_func: &mut ast::nodes::Function, struct_name: &str) {
-        if let Some(first_param) = method_func.params.first_mut() {
-            if let Some(ty) = &first_param.as_ref().ty {
-                if matches!(ty.as_ref(), ast::nodes::Type::Simple(name) if name == "Self") {
-                    let span = *ty.span();
-                    let replacement = ast::nodes::Type::Simple(struct_name.to_string());
-                    first_param.as_mut().ty = Some(Node::new(replacement, span));
-                }
-            }
+        let Some(first_param) = method_func.params.first_mut() else {
+            return;
+        };
+        let Some(ty) = first_param.as_ref().ty.as_ref() else {
+            return;
+        };
+
+        if matches!(ty.as_ref(), ast::nodes::Type::Simple(name) if name == "Self") {
+            let span = *ty.span();
+            let replacement = ast::nodes::Type::Simple(struct_name.to_string());
+            first_param.as_mut().ty = Some(Node::new(replacement, span));
         }
     }
 
@@ -248,17 +247,31 @@ impl<'ctx> Compiler<'ctx> {
         use crate::runtime::symbol_registry::FfiType;
 
         // Map FFI types to LLVM types
-        let map_type = |ffi_ty: &FfiType| -> BasicTypeEnum<'ctx> {
+        // Map FFI types to LLVM types
+        fn map_ffi_type<'ctx>(
+            context: &'ctx InkwellContext,
+            string_ptr_type: PointerType<'ctx>,
+            ffi_ty: &FfiType,
+        ) -> BasicTypeEnum<'ctx> {
             match ffi_ty {
-                FfiType::Unit => self.context.i8_type().into(), // Unit as i8
-                FfiType::Bool => self.context.bool_type().into(),
-                FfiType::I32 => self.context.i32_type().into(),
-                FfiType::I64 => self.context.i64_type().into(),
-                FfiType::F64 => self.context.f64_type().into(),
-                FfiType::Str => self.string_ptr_type.into(),
-                FfiType::Opaque | FfiType::List | FfiType::Map => self.context.i64_type().into(), // Handles as i64
+                FfiType::Unit => context.i8_type().into(),
+                FfiType::Bool => context.bool_type().into(),
+                FfiType::I32 => context.i32_type().into(),
+                FfiType::I64 => context.i64_type().into(),
+                FfiType::F64 => context.f64_type().into(),
+                FfiType::Str => string_ptr_type.into(),
+                FfiType::Opaque | FfiType::List | FfiType::Map => context.i64_type().into(),
+                FfiType::Struct { fields } | FfiType::Tuple(fields) => {
+                    let field_types: Vec<BasicTypeEnum> = fields
+                        .iter()
+                        .map(|f| map_ffi_type(context, string_ptr_type, f))
+                        .collect();
+                    context.struct_type(&field_types, false).into()
+                }
             }
-        };
+        }
+
+        let map_type = |ffi_ty: &FfiType| map_ffi_type(self.context, self.string_ptr_type, ffi_ty);
 
         // Map parameter types
         let param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = ffi_func
@@ -361,12 +374,19 @@ impl<'ctx> Compiler<'ctx> {
                 OtterType::Str
             }
             BasicTypeEnum::StructType(struct_type) => {
-                if let Some(name) = struct_type.get_name() {
-                    if let Some(id) = self.struct_id(name.to_str().unwrap_or_default()) {
-                        return OtterType::Struct(id);
-                    }
+                if let Some(id) = struct_type
+                    .get_name()
+                    .and_then(|name| self.struct_id(name.to_str().unwrap_or_default()))
+                {
+                    return OtterType::Struct(id);
                 }
-                OtterType::Opaque
+                // Anonymous struct or tuple
+                let field_types: Vec<OtterType> = struct_type
+                    .get_field_types()
+                    .iter()
+                    .map(|&ty| self.otter_type_from_basic_type(ty))
+                    .collect();
+                OtterType::Tuple(field_types)
             }
             _ => OtterType::Opaque,
         }
@@ -448,7 +468,7 @@ impl<'ctx> Compiler<'ctx> {
             let alloca = self.create_entry_block_alloca(
                 *function,
                 param_name.as_ref().as_str(),
-                otter_type,
+                otter_type.clone(),
             )?;
             self.builder.build_store(alloca, arg_val)?;
 
@@ -512,18 +532,9 @@ impl<'ctx> Compiler<'ctx> {
             None => builder.position_at_end(entry_block),
         }
 
-        let llvm_type: BasicTypeEnum = match otter_type {
-            OtterType::I64 => self.context.i64_type().into(),
-            OtterType::F64 => self.context.f64_type().into(),
-            OtterType::Bool => self.context.bool_type().into(),
-            OtterType::I32 => self.context.i32_type().into(),
-            OtterType::Str => self.string_ptr_type.into(),
-            OtterType::Unit => self.context.i8_type().into(), // Unit as i8
-            OtterType::List => self.context.i64_type().into(), // Opaque handle
-            OtterType::Map => self.context.i64_type().into(), // Opaque handle
-            OtterType::Opaque => self.context.i64_type().into(), // Opaque handle
-            OtterType::Struct(id) => self.struct_info(id).ty.into(),
-        };
+        let llvm_type: BasicTypeEnum = self
+            .basic_type(otter_type)?
+            .unwrap_or_else(|| self.context.i8_type().into());
 
         Ok(builder.build_alloca(llvm_type, name)?)
     }

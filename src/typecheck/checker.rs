@@ -2429,6 +2429,7 @@ fn ffi_type_to_typeinfo(ft: &FfiType) -> TypeInfo {
             key: Box::new(TypeInfo::Unknown),
             value: Box::new(TypeInfo::Unknown),
         },
+        FfiType::Struct { .. } | FfiType::Tuple(_) => TypeInfo::Unknown,
     }
 }
 

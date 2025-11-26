@@ -2,6 +2,14 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
+use abi_stable::std_types::RVec;
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TestPoint {
+    pub x: i64,
+    pub y: i64,
+}
 
 /// asserts that a condition is truthy; panic-ing with `message` otherwise
 ///
@@ -165,6 +173,11 @@ pub unsafe extern "C" fn otter_test_assert_false(condition: i64, message: *const
     unsafe { otter_test_assert(if condition == 0 { 1 } else { 0 }, message) }
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_test_struct_identity(point: TestPoint) -> TestPoint {
+    point
+}
+
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
@@ -264,6 +277,15 @@ fn register_std_test_symbols(registry: &SymbolRegistry) {
         name: "test.snapshot".into(),
         symbol: "otter_test_snapshot".into(),
         signature: FfiSignature::new(vec![FfiType::Str, FfiType::Str], FfiType::I32),
+    });
+
+    let point_type = FfiType::Struct {
+        fields: RVec::from(vec![FfiType::I64, FfiType::I64]),
+    };
+    registry.register(FfiFunction {
+        name: "test.struct_identity".into(),
+        symbol: "otter_test_struct_identity".into(),
+        signature: FfiSignature::new(vec![point_type.clone()], point_type),
     });
 }
 

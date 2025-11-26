@@ -1,5 +1,6 @@
 use std::fmt;
 
+use abi_stable::std_types::RVec;
 use abi_stable::StableAbi;
 use ahash::AHashMap;
 use once_cell::sync::Lazy;
@@ -17,6 +18,44 @@ pub enum FfiType {
     Opaque,
     List,
     Map,
+    Struct { fields: RVec<FfiType> },
+    Tuple(RVec<FfiType>),
+}
+
+impl fmt::Display for FfiType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FfiType::Unit => write!(f, "unit"),
+            FfiType::Bool => write!(f, "bool"),
+            FfiType::I32 => write!(f, "i32"),
+            FfiType::I64 => write!(f, "i64"),
+            FfiType::F64 => write!(f, "f64"),
+            FfiType::Str => write!(f, "str"),
+            FfiType::Opaque => write!(f, "opaque"),
+            FfiType::List => write!(f, "list"),
+            FfiType::Map => write!(f, "map"),
+            FfiType::Struct { fields } => {
+                write!(f, "struct {{")?;
+                for (idx, field) in fields.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", field)?;
+                }
+                write!(f, "}}")
+            }
+            FfiType::Tuple(fields) => {
+                write!(f, "(")?;
+                for (idx, field) in fields.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", field)?;
+                }
+                write!(f, ")")
+            }
+        }
+    }
 }
 
 #[repr(C)]
@@ -37,10 +76,10 @@ impl fmt::Display for FfiSignature {
         let params = self
             .params
             .iter()
-            .map(|ty| format!("{ty:?}"))
+            .map(|ty| ty.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        write!(f, "({params}) -> {:?}", self.result)
+        write!(f, "({params}) -> {}", self.result)
     }
 }
 
