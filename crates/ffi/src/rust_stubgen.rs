@@ -1,14 +1,9 @@
 use std::fmt::Write as _;
 
-use super::metadata::{CrateSpec, DependencyConfig, PublicItem, RustTypeRef};
-
-/// Template for how a stub should invoke the underlying Rust function.
-#[derive(Clone, Debug)]
-pub enum CallTemplate {
-    Direct,
-    Result,
-    Expr(String),
-}
+use super::types::{
+    CallTemplate, CrateSpec, DependencyConfig, FunctionSpec, PublicItem, RustTypeRef, StubSource,
+    TypeSpec,
+};
 
 enum ArgContext<'a> {
     C {
@@ -20,89 +15,6 @@ enum ArgContext<'a> {
         array_name: &'a str,
         func_name: &'a str,
     },
-}
-
-/// Describes a single extern "C" function to be exposed through the bridge.
-#[derive(Clone, Debug)]
-pub struct FunctionSpec {
-    pub name: String,
-    pub symbol: String,
-    pub params: Vec<TypeSpec>,
-    pub result: TypeSpec,
-    pub doc: Option<String>,
-    pub rust_path: Option<String>,
-    pub call: CallTemplate,
-}
-
-impl FunctionSpec {
-    pub fn simple(name: &str, params: Vec<TypeSpec>, result: TypeSpec) -> Self {
-        Self {
-            name: name.to_string(),
-            symbol: format!("otter_{}", name.to_lowercase()),
-            params,
-            result,
-            doc: None,
-            rust_path: None,
-            call: CallTemplate::Direct,
-        }
-    }
-}
-
-/// Supported primitive value categories for the generated stub.
-#[derive(Clone, Debug)]
-pub enum TypeSpec {
-    Unit,
-    Bool,
-    I32,
-    I64,
-    F64,
-    Str,
-    Opaque,
-}
-
-impl TypeSpec {
-    fn to_rust(&self) -> &'static str {
-        match self {
-            TypeSpec::Unit => "()",
-            TypeSpec::Bool => "bool",
-            TypeSpec::I32 => "i32",
-            TypeSpec::I64 => "i64",
-            TypeSpec::F64 => "f64",
-            TypeSpec::Str => "*const ::std::os::raw::c_char",
-            TypeSpec::Opaque => "i64",
-        }
-    }
-
-    fn default_return(&self) -> &'static str {
-        match self {
-            TypeSpec::Unit => "()",
-            TypeSpec::Bool => "false",
-            TypeSpec::I32 => "0",
-            TypeSpec::I64 => "0",
-            TypeSpec::F64 => "0.0",
-            TypeSpec::Str => "::std::ptr::null_mut()",
-            TypeSpec::Opaque => "0",
-        }
-    }
-
-    fn ffi_variant(&self) -> &'static str {
-        match self {
-            TypeSpec::Unit => "FfiType::Unit",
-            TypeSpec::Bool => "FfiType::Bool",
-            TypeSpec::I32 => "FfiType::I32",
-            TypeSpec::I64 => "FfiType::I64",
-            TypeSpec::F64 => "FfiType::F64",
-            TypeSpec::Str => "FfiType::Str",
-            TypeSpec::Opaque => "FfiType::Opaque",
-        }
-    }
-}
-
-/// Source artifacts that comprise the generated stub crate.
-#[derive(Clone, Debug)]
-pub struct StubSource {
-    pub manifest: String,
-    pub source: String,
 }
 
 /// Emits the `Cargo.toml` and `lib.rs` contents for a bridge crate.

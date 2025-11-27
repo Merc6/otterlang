@@ -7,10 +7,10 @@ use tracing::debug;
 
 use cache::path::cache_root;
 
-use super::metadata::{BridgeMetadata, CrateSpec};
-use super::rust_stubgen::{RustStubGenerator, StubSource};
+use super::rust_stubgen::RustStubGenerator;
 use super::rustdoc_extractor::extract_crate_spec;
 use super::symbol_registry::BridgeSymbolRegistry;
+use super::types::{BridgeMetadata, CrateSpec, StubSource};
 
 /// Describes the key paths generated for a bridge crate.
 #[derive(Clone, Debug)]
@@ -133,7 +133,7 @@ impl CargoBridge {
     fn write_bridge_with_functions(
         &self,
         metadata: &BridgeMetadata,
-        functions: &[super::rust_stubgen::FunctionSpec],
+        functions: &[crate::FunctionSpec],
         crate_root: &Path,
     ) -> Result<()> {
         fs::create_dir_all(crate_root).with_context(|| {

@@ -5,8 +5,9 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
-use super::metadata::{BridgeMetadata, load_bridge_metadata};
-use super::rust_stubgen::FunctionSpec;
+use super::metadata::load_bridge_metadata;
+use crate::types::BridgeMetadata;
+use crate::types::FunctionSpec;
 
 /// Represents a function that should be exported from a bridge crate.
 #[derive(Clone, Debug)]

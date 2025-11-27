@@ -4,8 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
-use super::metadata::DependencyConfig;
-use super::metadata::{CrateSpec, FnSig, PublicItem, RustPath, RustTypeRef};
+use super::types::CrateSpec;
+use super::types::DependencyConfig;
+use crate::{FnSig, PublicItem, RustPath, RustTypeRef};
 use cache::path::cache_root;
 
 pub fn generate_rustdoc_json(dep: &DependencyConfig) -> Result<PathBuf> {
