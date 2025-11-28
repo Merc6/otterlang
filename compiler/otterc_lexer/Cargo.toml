@@ -9,7 +9,6 @@ otterc_span.path = "../otterc_span"
 
 logos = "0.15"
 thiserror = "2"
-num_enum = "0.7.5"
 
 [lints]
 workspace = true

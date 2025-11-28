@@ -3,10 +3,9 @@
 use crate::Error;
 
 use logos::Logos;
-use num_enum::TryFromPrimitive;
 
 /// the kind for a lexeme
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Logos, TryFromPrimitive)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Logos)]
 #[logos(error(Error, Error::from))]
 #[logos(subpattern breaking_space = r"\r?\n")] // technically there's more but this is all otter-lang supports
 #[logos(subpattern horizontal_space = r"[ ]")] // technically there's more but this is all otter-lang supports
