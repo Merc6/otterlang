@@ -18,6 +18,40 @@ use super::config::{
     BuildArtifact, CodegenOptLevel, CodegenOptions, llvm_triple_to_string, preferred_target_flag,
 };
 
+/// Check if a library is available on the system
+fn check_library_available(lib_name: &str) -> bool {
+    // Try pkg-config first
+    if let Ok(output) = Command::new("pkg-config")
+        .args(["--exists", lib_name])
+        .output()
+    {
+        if output.status.success() {
+            return true;
+        }
+    }
+
+    // Try checking common library paths
+    let common_paths = [
+        "/usr/lib",
+        "/usr/local/lib",
+        "/lib",
+        "/lib64",
+        "/usr/lib64",
+    ];
+
+    for path in &common_paths {
+        let lib_file = format!("lib{}.so", lib_name);
+        let lib_file_a = format!("lib{}.a", lib_name);
+        if Path::new(path).join(&lib_file).exists()
+            || Path::new(path).join(&lib_file_a).exists()
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
 pub fn current_llvm_version() -> String {
     "15.0".to_string()
 }
@@ -378,9 +412,17 @@ pub fn build_executable(
                 .arg("-ldl")
                 .arg("-lpthread")
                 .arg("-lz")
-                .arg("-lxml2")
-                .arg("-ledit")
-                .arg("-lffi")
+                .arg("-lxml2");
+            
+            // Try to link libedit, but fallback to libreadline or skip if neither is available
+            if check_library_available("edit") {
+                cc.arg("-ledit");
+            } else if check_library_available("readline") {
+                cc.arg("-lreadline");
+            }
+            // If neither is available, skip - the runtime should still work
+            
+            cc.arg("-lffi")
                 .arg("-lzstd")
                 .arg("-ltinfo");
         }
@@ -687,9 +729,17 @@ pub fn build_shared_library(
                 .arg("-ldl")
                 .arg("-lpthread")
                 .arg("-lz")
-                .arg("-lxml2")
-                .arg("-ledit")
-                .arg("-lffi")
+                .arg("-lxml2");
+            
+            // Try to link libedit, but fallback to libreadline or skip if neither is available
+            if check_library_available("edit") {
+                cc.arg("-ledit");
+            } else if check_library_available("readline") {
+                cc.arg("-lreadline");
+            }
+            // If neither is available, skip - the runtime should still work
+            
+            cc.arg("-lffi")
                 .arg("-lzstd")
                 .arg("-ltinfo");
         }
