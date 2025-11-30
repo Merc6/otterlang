@@ -582,10 +582,10 @@ impl<'ctx> Compiler<'ctx> {
         variant: &str,
         matched_type: Option<&TypeInfo>,
     ) -> Option<Vec<TypeInfo>> {
-        if let Some(ty) = matched_type {
-            if let Some(fields) = self.enum_variant_fields_from_type(ty, enum_name, variant) {
-                return Some(fields);
-            }
+        if let Some(fields) = matched_type
+            .and_then(|ty| self.enum_variant_fields_from_type(ty, enum_name, variant))
+        {
+            return Some(fields);
         }
 
         self.enum_type(enum_name)
@@ -605,25 +605,22 @@ impl<'ctx> Compiler<'ctx> {
             TypeInfo::Alias { underlying, .. } => {
                 self.enum_variant_fields_from_type(underlying, enum_name, variant)
             }
-            TypeInfo::Generic { base, args } if base == enum_name => {
-                // Attempt to find a concrete instantiation with the same type arguments
-                self.expr_types.values().find_map(|candidate| {
-                    if let TypeInfo::Enum {
+            TypeInfo::Generic { base, args } if base == enum_name => self
+                .expr_types
+                .values()
+                .find_map(|candidate| match candidate {
+                    TypeInfo::Enum {
                         name,
                         args: enum_args,
                         variants,
-                    } = candidate
+                    } if name == enum_name
+                        && enum_args.len() == args.len()
+                        && enum_args.iter().zip(args.iter()).all(|(a, b)| a == b) =>
                     {
-                        if name == enum_name
-                            && enum_args.len() == args.len()
-                            && enum_args.iter().zip(args.iter()).all(|(a, b)| a == b)
-                        {
-                            return variants.get(variant).map(|info| info.fields.clone());
-                        }
+                        variants.get(variant).map(|info| info.fields.clone())
                     }
-                    None
-                })
-            }
+                    _ => None,
+                }),
             _ => None,
         }
     }

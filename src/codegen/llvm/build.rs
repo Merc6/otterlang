@@ -24,7 +24,7 @@ fn check_library_available(lib_name: &str) -> bool {
     if Command::new("pkg-config")
         .args(["--exists", lib_name])
         .output()
-        .map_or(false, |output| output.status.success())
+        .is_ok_and(|output| output.status.success())
     {
         return true;
     }
@@ -50,12 +50,13 @@ fn check_library_available(lib_name: &str) -> bool {
 
         // Check for versioned .so files
         if let Ok(entries) = fs::read_dir(path) {
-            for entry in entries.flatten() {
-                if let Some(name) = entry.file_name().to_str() {
-                    if name.starts_with(&format!("lib{}.so", lib_name)) {
-                        return true;
-                    }
-                }
+            if entries.flatten().any(|entry| {
+                entry.file_name()
+                    .to_str()
+                    .map(|name| name.starts_with(&format!("lib{}.so", lib_name)))
+                    .unwrap_or(false)
+            }) {
+                return true;
             }
         }
     }
@@ -91,7 +92,6 @@ fn ensure_runtime_library() -> Result<PathBuf> {
         "--lib",
         "--crate-type=staticlib",
         "--no-default-features",
-        "--features=ffi-main",
         "--target-dir",
         runtime_lib_dir.to_str().unwrap(),
     ]);
@@ -237,12 +237,20 @@ pub fn build_executable(
             )
         })?;
 
+    // Build and link the runtime static library (check once)
+    let runtime_lib = ensure_runtime_library()?;
+    let use_rust_runtime = runtime_lib.exists();
+
     // Create a C runtime shim for the FFI functions (target-specific)
     let runtime_c = if runtime_triple.is_wasm() {
         None
     } else {
         let runtime_c = output.with_extension("runtime.c");
-        let runtime_c_content = runtime_triple.runtime_c_code();
+        let runtime_c_content = if use_rust_runtime {
+            runtime_triple.runtime_c_shim_code()
+        } else {
+            runtime_triple.runtime_c_code()
+        };
         fs::write(&runtime_c, runtime_c_content).context("failed to write runtime C file")?;
         Some(runtime_c)
     };
@@ -283,10 +291,6 @@ pub fn build_executable(
         None
     };
 
-    // Build and link the runtime static library (check once)
-    let runtime_lib = ensure_runtime_library()?;
-    let use_rust_runtime = runtime_lib.exists();
-
     // Link the object files together (target-specific)
     let linker = runtime_triple.linker();
     let mut cc = Command::new(&linker);
@@ -320,11 +324,10 @@ pub fn build_executable(
         // Always link the generated object first
         cc.arg(&object_path);
 
-        // Only include the C runtime shim when the Rust static runtime isn't available
-        if !use_rust_runtime {
-            if let Some(ref rt_o) = runtime_o {
-                cc.arg(rt_o);
-            }
+        // Always include the generated C runtime shim for native targets so we get
+        // the entrypoint and thin wrappers even when linking against the Rust runtime.
+        if let Some(ref rt_o) = runtime_o {
+            cc.arg(rt_o);
         }
 
         // Delay specifying the output until after we've queued all inputs and flags

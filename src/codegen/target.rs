@@ -695,6 +695,22 @@ int main(int argc, char** argv) {
 "#.to_string()
     }
 
+    pub fn runtime_c_shim_code(&self) -> String {
+        r#"
+#include <stddef.h>
+#include <stdint.h>
+
+extern void otter_entry();
+
+int main(int argc, char** argv) {
+    (void)argc;
+    (void)argv;
+    otter_entry();
+    return 0;
+}
+"#.to_string()
+    }
+
     /// WebAssembly runtime code
     fn wasm_runtime_code(&self) -> String {
         r#"
