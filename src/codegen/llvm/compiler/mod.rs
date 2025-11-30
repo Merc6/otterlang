@@ -105,20 +105,6 @@ impl<'ctx> Compiler<'ctx> {
         self.enum_layouts.get(name)
     }
 
-    pub(crate) fn enum_type(&self, name: &str) -> Option<&TypeInfo> {
-        // Search expr_types for an enum type with this name
-        self.expr_types.values().find(|ty| {
-            if let TypeInfo::Enum {
-                name: enum_name, ..
-            } = ty
-            {
-                enum_name == name
-            } else {
-                false
-            }
-        })
-    }
-
     fn ensure_struct_info(&mut self, name: &str) -> (u32, StructType<'ctx>) {
         if let Some(&id) = self.struct_ids.get(name) {
             let ty = self.struct_infos[id as usize].ty;

@@ -612,15 +612,29 @@ impl TypeContext {
         self.enums
             .iter()
             .map(|(name, definition)| {
+                let variant_fields = definition
+                    .variants
+                    .iter()
+                    .map(|variant| {
+                        let fields = variant
+                            .fields
+                            .iter()
+                            .map(|ty| TypeInfo::from(ty.as_ref()))
+                            .collect();
+                        (variant.name.clone(), fields)
+                    })
+                    .collect();
                 (
                     name.clone(),
                     EnumLayout {
                         name: name.clone(),
+                        generics: definition.generics.clone(),
                         variants: definition
                             .variants
                             .iter()
                             .map(|variant| variant.name.clone())
                             .collect(),
+                        variant_fields,
                     },
                 )
             })
@@ -727,7 +741,9 @@ pub struct EnumDefinition {
 #[derive(Debug, Clone)]
 pub struct EnumLayout {
     pub name: String,
+    pub generics: Vec<String>,
     pub variants: Vec<String>,
+    pub variant_fields: HashMap<String, Vec<TypeInfo>>,
 }
 
 impl EnumLayout {
@@ -736,5 +752,26 @@ impl EnumLayout {
             .iter()
             .position(|name| name == variant)
             .map(|idx| idx as u32)
+    }
+
+    pub fn fields_of(&self, variant: &str, args: &[TypeInfo]) -> Option<Vec<TypeInfo>> {
+        let fields = self.variant_fields.get(variant)?;
+        if self.generics.is_empty() {
+            return Some(fields.clone());
+        }
+
+        let mut subs = HashMap::new();
+        for (generic, arg) in self.generics.iter().zip(args.iter()) {
+            subs.insert(generic.clone(), arg.clone());
+        }
+
+        // If the caller supplied fewer args than required, treat the remainder as Unknown
+        if args.len() < self.generics.len() {
+            for generic in self.generics.iter().skip(args.len()) {
+                subs.entry(generic.clone()).or_insert(TypeInfo::Unknown);
+            }
+        }
+
+        Some(fields.iter().map(|ty| ty.substitute(&subs)).collect())
     }
 }

@@ -582,47 +582,15 @@ impl<'ctx> Compiler<'ctx> {
         variant: &str,
         matched_type: Option<&TypeInfo>,
     ) -> Option<Vec<TypeInfo>> {
-        if let Some(fields) = matched_type
-            .and_then(|ty| self.enum_variant_fields_from_type(ty, enum_name, variant))
+        if let Some(TypeInfo::Enum { name, args, .. }) = matched_type
+            && name == enum_name
+            && let Some(layout) = self.enum_layout(enum_name)
         {
-            return Some(fields);
+            return layout.fields_of(variant, args);
         }
 
-        self.enum_type(enum_name)
-            .and_then(|ty| self.enum_variant_fields_from_type(ty, enum_name, variant))
-    }
-
-    fn enum_variant_fields_from_type(
-        &self,
-        ty: &TypeInfo,
-        enum_name: &str,
-        variant: &str,
-    ) -> Option<Vec<TypeInfo>> {
-        match ty {
-            TypeInfo::Enum { name, variants, .. } if name == enum_name => {
-                variants.get(variant).map(|info| info.fields.clone())
-            }
-            TypeInfo::Alias { underlying, .. } => {
-                self.enum_variant_fields_from_type(underlying, enum_name, variant)
-            }
-            TypeInfo::Generic { base, args } if base == enum_name => self
-                .expr_types
-                .values()
-                .find_map(|candidate| match candidate {
-                    TypeInfo::Enum {
-                        name,
-                        args: enum_args,
-                        variants,
-                    } if name == enum_name
-                        && enum_args.len() == args.len()
-                        && enum_args.iter().zip(args.iter()).all(|(a, b)| a == b) =>
-                    {
-                        variants.get(variant).map(|info| info.fields.clone())
-                    }
-                    _ => None,
-                }),
-            _ => None,
-        }
+        self.enum_layout(enum_name)
+            .and_then(|layout| layout.fields_of(variant, &[]))
     }
 
     fn build_equality_check(

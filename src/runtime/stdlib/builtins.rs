@@ -183,6 +183,18 @@ fn list_value(handle: HandleId, index: i64) -> Option<Value> {
         .and_then(|list| list.items.get(index as usize).cloned())
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn otter_runtime_list_length(handle: u64) -> i64 {
+    otter_builtin_len_list(handle)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn otter_runtime_list_get(handle: u64, index: i64) -> u64 {
+    list_value(handle, index)
+        .map(|value| encode_runtime_value(&value))
+        .unwrap_or(0)
+}
+
 fn map_value(handle: HandleId, key: &str) -> Option<Value> {
     let maps = MAPS.read();
     maps.get(&handle)
@@ -1595,6 +1607,18 @@ fn register_builtin_symbols(registry: &SymbolRegistry) {
         name: "list.new".into(),
         symbol: "otter_builtin_list_new".into(),
         signature: FfiSignature::new(vec![], FfiType::List),
+    });
+
+    registry.register(FfiFunction {
+        name: "runtime.list.length".into(),
+        symbol: "otter_runtime_list_length".into(),
+        signature: FfiSignature::new(vec![FfiType::List], FfiType::I64),
+    });
+
+    registry.register(FfiFunction {
+        name: "runtime.list.get".into(),
+        symbol: "otter_runtime_list_get".into(),
+        signature: FfiSignature::new(vec![FfiType::List, FfiType::I64], FfiType::I64),
     });
 
     registry.register(FfiFunction {

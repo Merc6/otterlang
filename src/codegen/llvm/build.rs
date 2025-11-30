@@ -51,7 +51,8 @@ fn check_library_available(lib_name: &str) -> bool {
         // Check for versioned .so files
         if let Ok(entries) = fs::read_dir(path) {
             if entries.flatten().any(|entry| {
-                entry.file_name()
+                entry
+                    .file_name()
                     .to_str()
                     .map(|name| name.starts_with(&format!("lib{}.so", lib_name)))
                     .unwrap_or(false)
@@ -318,8 +319,6 @@ pub fn build_executable(
         // Always link the generated object first
         cc.arg(&object_path);
 
-        // Always include the generated C runtime shim for native targets so we get
-        // the entrypoint and thin wrappers even when linking against the Rust runtime.
         if let Some(ref rt_o) = runtime_o {
             cc.arg(rt_o);
         }
@@ -368,7 +367,7 @@ pub fn build_executable(
     if use_rust_runtime {
         // Link the runtime library - use -force_load on macOS to ensure all symbols are included
         if runtime_triple.os == "darwin" {
-            cc.arg("-force_load").arg(&runtime_lib);
+            cc.arg(&runtime_lib);
             // Link against system libraries required by LLVM dependencies in runtime
             // Use pkg-config to get proper library paths
             if let Ok(output) = std::process::Command::new("pkg-config")
@@ -417,9 +416,7 @@ pub fn build_executable(
                 .arg("-lbcrypt")
                 .arg("-luser32");
         } else {
-            cc.arg("-Wl,--whole-archive")
-                .arg(&runtime_lib)
-                .arg("-Wl,--no-whole-archive")
+            cc.arg(&runtime_lib)
                 .arg("-lstdc++")
                 .arg("-lm")
                 .arg("-ldl")
@@ -664,16 +661,11 @@ pub fn build_shared_library(
             cc.arg("-Wl,-w"); // Suppress linker warnings
         }
 
-        // Skip C runtime when Rust runtime is available to avoid duplicate symbols
-        if use_rust_runtime {
-            // Use Rust runtime - don't link C runtime
-            cc.arg("-o").arg(&lib_path).arg(&object_path);
-        } else if let Some(ref rt_o) = runtime_o {
-            // Fallback to C runtime if Rust runtime doesn't exist
-            cc.arg("-o").arg(&lib_path).arg(&object_path).arg(rt_o);
-        } else {
-            cc.arg("-o").arg(&lib_path).arg(&object_path);
+        if let Some(ref rt_o) = runtime_o {
+            cc.arg(rt_o);
         }
+
+        cc.arg("-o").arg(&lib_path).arg(&object_path);
     }
 
     // Apply target-specific linker flags
@@ -713,7 +705,7 @@ pub fn build_shared_library(
     // Link the Rust runtime library (skip if we used C runtime fallback)
     if use_rust_runtime {
         if runtime_triple.os == "darwin" {
-            cc.arg("-force_load").arg(&runtime_lib);
+            cc.arg(&runtime_lib);
             // Link against system libraries required by LLVM dependencies in runtime
             cc.arg("-lxml2")
                 .arg("-lreadline")

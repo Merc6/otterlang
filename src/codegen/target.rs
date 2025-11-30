@@ -708,7 +708,8 @@ int main(int argc, char** argv) {
     otter_entry();
     return 0;
 }
-"#.to_string()
+"#
+        .to_string()
     }
 
     /// WebAssembly runtime code
