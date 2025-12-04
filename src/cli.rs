@@ -179,15 +179,16 @@ fn maybe_auto_update() -> Result<()> {
     fs::create_dir_all(stamp_path.parent().unwrap())?;
 
     let mut needs_install = true;
-    if let Ok(contents) = fs::read_to_string(&stamp_path) {
-        if let Ok(prev) = contents.trim().parse::<u128>() {
-            let current = lock_mtime
-                .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            if current <= prev {
-                needs_install = false;
-            }
+    if let Some(prev) = fs::read_to_string(&stamp_path)
+        .ok()
+        .and_then(|c| c.trim().parse::<u128>().ok())
+    {
+        let current = lock_mtime
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        if current <= prev {
+            needs_install = false;
         }
     }
 

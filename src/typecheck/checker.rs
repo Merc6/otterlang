@@ -312,7 +312,7 @@ impl TypeChecker {
             return None;
         }
 
-        let candidate = module.split(':').last().unwrap_or(module);
+        let candidate = module.rsplit(':').next().unwrap_or(module);
         if candidate.starts_with('.') || candidate.starts_with('/') {
             return None;
         }
@@ -1228,18 +1228,13 @@ impl TypeChecker {
                     if let Some(var_type) = self.context.get_variable(name) {
                         Ok(var_type.clone())
                     } else {
-                        if let Some(registry) = self.registry {
-                            if registry.has_module(name) {
-                                self.errors.push(
-                                    TypeError::new(format!("module `{}` is not imported", name))
-                                        .with_hint(format!(
-                                            "add `use {}` at the top of the file",
-                                            name
-                                        ))
-                                        .with_span(*span),
-                                );
-                                return Ok(TypeInfo::Error);
-                            }
+                        if self.registry.is_some_and(|r| r.has_module(name)) {
+                            self.errors.push(
+                                TypeError::new(format!("module `{}` is not imported", name))
+                                    .with_hint(format!("add `use {}` at the top of the file", name))
+                                    .with_span(*span),
+                            );
+                            return Ok(TypeInfo::Error);
                         }
 
                         self.errors.push(

@@ -280,7 +280,7 @@ impl ModuleProcessor {
     }
 
     fn is_virtual_module(module: &str) -> bool {
-        let namespace_split = module.split(':').last().unwrap_or(module);
+        let namespace_split = module.rsplit(':').next().unwrap_or(module);
         let candidate = namespace_split
             .rsplit(['/', '.'])
             .next()

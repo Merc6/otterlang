@@ -49,16 +49,16 @@ fn check_library_available(lib_name: &str) -> bool {
         }
 
         // Check for versioned .so files
-        if let Ok(entries) = fs::read_dir(path) {
-            if entries.flatten().any(|entry| {
+        if fs::read_dir(path).is_ok_and(|entries| {
+            entries.flatten().any(|entry| {
                 entry
                     .file_name()
                     .to_str()
                     .map(|name| name.starts_with(&format!("lib{}.so", lib_name)))
                     .unwrap_or(false)
-            }) {
-                return true;
-            }
+            })
+        }) {
+            return true;
         }
     }
 
