@@ -1,15 +1,20 @@
 use test
 
-struct Point:
-    x: int
-    y: int
-
 fn main():
     println("Starting struct test...")
-    let start = Point(x=42, y=-13)
-    let round_trip: Point = test.struct_identity(start)
-
-    test.assert(round_trip.x == start.x, "struct identity should preserve x")
-    test.assert(round_trip.y == start.y, "struct identity should preserve y")
+    
+    let start = test.point_new(42, -13)
+    
+    let round_trip = test.struct_identity(start)
+    
+    let start_x = test.point_get_x(start)
+    let start_y = test.point_get_y(start)
+    let round_x = test.point_get_x(round_trip)
+    let round_y = test.point_get_y(round_trip)
+    test.assert(round_x == start_x, "struct identity should preserve x")
+    test.assert(round_y == start_y, "struct identity should preserve y")
+    
+    test.point_free(start)
+    test.point_free(round_trip)
+    
     println("Struct test passed!")
-

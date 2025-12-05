@@ -2,7 +2,6 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 use crate::runtime::symbol_registry::{FfiFunction, FfiSignature, FfiType, SymbolRegistry};
-use abi_stable::std_types::RVec;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -173,14 +172,82 @@ pub unsafe extern "C" fn otter_test_assert_false(condition: bool, message: *cons
     unsafe { otter_test_assert(!condition, message) }
 }
 
-/// returns the input point unchanged
+/// Creates a new Point struct from x, y values and returns an opaque handle
 ///
 /// # Safety
 ///
-/// this function crosses the FFI boundary and assumes the TestPoint struct is properly initialized
+/// this function crosses the FFI boundary
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otter_test_struct_identity(point: TestPoint) -> TestPoint {
-    point
+pub extern "C" fn otter_test_point_new(x: i64, y: i64) -> i64 {
+    let point = Box::new(TestPoint { x, y });
+    Box::into_raw(point) as i64
+}
+
+/// Gets the x field from a Point handle
+///
+/// # Safety
+///
+/// handle must be a valid Point pointer
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_test_point_get_x(handle: i64) -> i64 {
+    unsafe {
+        let point = handle as *const TestPoint;
+        if point.is_null() {
+            return 0;
+        }
+        (*point).x
+    }
+}
+
+/// Gets the y field from a Point handle
+///
+/// # Safety
+///
+/// handle must be a valid Point pointer
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_test_point_get_y(handle: i64) -> i64 {
+    unsafe {
+        let point = handle as *const TestPoint;
+        if point.is_null() {
+            return 0;
+        }
+        (*point).y
+    }
+}
+
+/// Returns a copy of the input point (identity function via handles)
+///
+/// # Safety
+///
+/// handle must be a valid Point pointer
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_test_struct_identity(handle: i64) -> i64 {
+    unsafe {
+        let point = handle as *const TestPoint;
+        if point.is_null() {
+            return 0;
+        }
+        // Clone the point and return new handle
+        let copy = Box::new(TestPoint {
+            x: (*point).x,
+            y: (*point).y,
+        });
+        Box::into_raw(copy) as i64
+    }
+}
+
+/// Frees a Point handle
+///
+/// # Safety
+///
+/// handle must be a valid Point pointer or 0
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn otter_test_point_free(handle: i64) {
+    unsafe {
+        if handle != 0 {
+            let _ = Box::from_raw(handle as *mut TestPoint);
+        }
+    }
 }
 
 use once_cell::sync::Lazy;
@@ -284,13 +351,35 @@ fn register_std_test_symbols(registry: &SymbolRegistry) {
         signature: FfiSignature::new(vec![FfiType::Str, FfiType::Str], FfiType::I32),
     });
 
-    let point_type = FfiType::Struct {
-        fields: RVec::from(vec![FfiType::I64, FfiType::I64]),
-    };
+    // Point struct operations using opaque handles (cross-platform ABI)
+    registry.register(FfiFunction {
+        name: "test.point_new".into(),
+        symbol: "otter_test_point_new".into(),
+        signature: FfiSignature::new(vec![FfiType::I64, FfiType::I64], FfiType::Opaque),
+    });
+
+    registry.register(FfiFunction {
+        name: "test.point_get_x".into(),
+        symbol: "otter_test_point_get_x".into(),
+        signature: FfiSignature::new(vec![FfiType::Opaque], FfiType::I64),
+    });
+
+    registry.register(FfiFunction {
+        name: "test.point_get_y".into(),
+        symbol: "otter_test_point_get_y".into(),
+        signature: FfiSignature::new(vec![FfiType::Opaque], FfiType::I64),
+    });
+
     registry.register(FfiFunction {
         name: "test.struct_identity".into(),
         symbol: "otter_test_struct_identity".into(),
-        signature: FfiSignature::new(vec![point_type.clone()], point_type),
+        signature: FfiSignature::new(vec![FfiType::Opaque], FfiType::Opaque),
+    });
+
+    registry.register(FfiFunction {
+        name: "test.point_free".into(),
+        symbol: "otter_test_point_free".into(),
+        signature: FfiSignature::new(vec![FfiType::Opaque], FfiType::Unit),
     });
 }
 

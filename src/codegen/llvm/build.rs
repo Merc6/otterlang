@@ -4,11 +4,11 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
-use otterc_span::Span;
 use inkwell::OptimizationLevel;
 use inkwell::context::Context as LlvmContext;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target};
 use otterc_ast::nodes::Program;
+use otterc_span::Span;
 
 use crate::codegen::target::TargetTriple;
 use crate::typecheck::{EnumLayout, TypeInfo};
@@ -140,6 +140,15 @@ pub fn build_executable(
     let builder = context.create_builder();
     let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
+
+    // Determine target triple early so compiler can use it for ABI decisions
+    Target::initialize_all(&InitializationConfig::default());
+    let runtime_triple = options.target.clone().unwrap_or_else(|| {
+        let native_triple = inkwell::targets::TargetMachine::get_default_triple();
+        TargetTriple::parse(&llvm_triple_to_string(&native_triple))
+            .unwrap_or_else(|_| TargetTriple::new("x86_64", "unknown", "linux", Some("gnu")))
+    });
+
     let mut compiler = Compiler::new(
         &context,
         module,
@@ -149,6 +158,7 @@ pub fn build_executable(
         expr_types_by_span.clone(),
         comprehension_var_types.clone(),
         enum_layouts.clone(),
+        Some(runtime_triple.clone()),
     );
 
     compiler.lower_program(program, true)?; // Require main for executables
@@ -162,15 +172,7 @@ pub fn build_executable(
         compiler.cached_ir = Some(compiler.module.print_to_string().to_string());
     }
 
-    // Initialize all LLVM targets before creating any target triples
-    Target::initialize_all(&InitializationConfig::default());
-
-    // Determine target triple: use provided target or fall back to native
-    let runtime_triple = options.target.clone().unwrap_or_else(|| {
-        let native_triple = inkwell::targets::TargetMachine::get_default_triple();
-        TargetTriple::parse(&llvm_triple_to_string(&native_triple))
-            .unwrap_or_else(|_| TargetTriple::new("x86_64", "unknown", "linux", Some("gnu")))
-    });
+    // runtime_triple was computed earlier for compiler ABI decisions
 
     // Convert to LLVM triple format
     let triple_str = runtime_triple.to_llvm_triple();
@@ -487,6 +489,21 @@ pub fn build_shared_library(
     let builder = context.create_builder();
     let registry = crate::runtime::ffi::bootstrap_stdlib();
     let bridge_libraries = prepare_rust_bridges(program, registry)?;
+
+    // Initialize all LLVM targets before creating any target triples
+    Target::initialize_all(&InitializationConfig::default());
+
+    // Determine target triple early so compiler can use it for ABI decisions
+    let runtime_triple = if let Some(ref target) = options.target {
+        target.clone()
+    } else {
+        // Get native target triple directly from LLVM
+        let native_triple = inkwell::targets::TargetMachine::get_default_triple();
+        let native_str = llvm_triple_to_string(&native_triple);
+        TargetTriple::parse(&native_str)
+            .unwrap_or_else(|_| TargetTriple::new("x86_64", "unknown", "linux", Some("gnu")))
+    };
+
     let mut compiler = Compiler::new(
         &context,
         module,
@@ -496,6 +513,7 @@ pub fn build_shared_library(
         expr_types_by_span.clone(),
         comprehension_var_types.clone(),
         enum_layouts.clone(),
+        Some(runtime_triple.clone()),
     );
 
     compiler.lower_program(program, false)?; // Don't require main for shared libraries
@@ -507,20 +525,6 @@ pub fn build_shared_library(
     if options.emit_ir {
         compiler.cached_ir = Some(compiler.module.print_to_string().to_string());
     }
-
-    // Initialize all LLVM targets before creating any target triples
-    Target::initialize_all(&InitializationConfig::default());
-
-    // Determine target triple: use provided target or fall back to native
-    let runtime_triple = if let Some(ref target) = options.target {
-        target.clone()
-    } else {
-        // Get native target triple directly from LLVM
-        let native_triple = inkwell::targets::TargetMachine::get_default_triple();
-        let native_str = llvm_triple_to_string(&native_triple);
-        TargetTriple::parse(&native_str)
-            .unwrap_or_else(|_| TargetTriple::new("x86_64", "unknown", "linux", Some("gnu")))
-    };
 
     // Convert to LLVM triple format
     let triple_str = runtime_triple.to_llvm_triple();

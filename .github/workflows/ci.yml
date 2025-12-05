@@ -246,4 +246,6 @@ jobs:
           if ($failed.Count -gt 0) {
             Write-Warning "The following examples failed:"
             $failed | ForEach-Object { Write-Warning " - $_" }
+            exit 1
           }
+

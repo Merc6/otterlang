@@ -12,6 +12,7 @@ use inkwell::types::{BasicType, BasicTypeEnum, PointerType, StructType};
 use inkwell::values::{FunctionValue, PointerValue};
 
 use crate::codegen::llvm::bridges::prepare_rust_bridges;
+use crate::codegen::target::TargetTriple;
 use crate::runtime::symbol_registry::SymbolRegistry;
 use crate::typecheck::{EnumLayout, TypeInfo};
 use otterc_ast::nodes::{Block, Expr, FStringPart, Function, Node, Program, Statement};
@@ -53,6 +54,8 @@ pub struct Compiler<'ctx> {
     struct_ids: HashMap<String, u32>,
     struct_infos: Vec<StructInfo<'ctx>>,
     pub cached_ir: Option<String>,
+    /// Target triple for platform-specific ABI handling
+    target_triple: Option<TargetTriple>,
 }
 
 use crate::codegen::llvm::config::CodegenOptLevel;
@@ -220,6 +223,7 @@ impl<'ctx> Compiler<'ctx> {
         expr_types_by_span: HashMap<Span, TypeInfo>,
         comprehension_var_types: HashMap<Span, TypeInfo>,
         enum_layouts: HashMap<String, EnumLayout>,
+        target_triple: Option<TargetTriple>,
     ) -> Self {
         let fpm = PassManager::create(&module);
 
@@ -253,7 +257,16 @@ impl<'ctx> Compiler<'ctx> {
             struct_ids: HashMap::new(),
             struct_infos: Vec::new(),
             cached_ir: None,
+            target_triple,
         }
+    }
+
+    /// Check if we're targeting Windows x64, which has different struct passing ABI
+    fn is_windows_x64(&self) -> bool {
+        self.target_triple
+            .as_ref()
+            .map(|t| t.is_windows() && t.arch == "x86_64")
+            .unwrap_or(false)
     }
 
     pub fn lower_program(&mut self, program: &Program, _require_main: bool) -> Result<()> {
@@ -440,7 +453,36 @@ impl<'ctx> Compiler<'ctx> {
     ) -> Result<FunctionValue<'ctx>> {
         use crate::runtime::symbol_registry::FfiType;
 
-        // Map FFI types to LLVM types
+        // Helper to calculate struct size in bytes
+        fn ffi_type_size(ffi_ty: &FfiType) -> usize {
+            match ffi_ty {
+                FfiType::Unit | FfiType::Bool => 1,
+                FfiType::I32 => 4,
+                FfiType::I64
+                | FfiType::F64
+                | FfiType::Str
+                | FfiType::Opaque
+                | FfiType::List
+                | FfiType::Map => 8,
+                FfiType::Struct { fields } | FfiType::Tuple(fields) => {
+                    fields.iter().map(ffi_type_size).sum()
+                }
+            }
+        }
+
+        // Check if a struct type needs pointer passing on Windows x64
+        fn needs_ptr_passing(ffi_ty: &FfiType, is_windows_x64: bool) -> bool {
+            if !is_windows_x64 {
+                return false;
+            }
+            match ffi_ty {
+                FfiType::Struct { .. } | FfiType::Tuple(_) => ffi_type_size(ffi_ty) > 8,
+                _ => false,
+            }
+        }
+
+        let is_win64 = self.is_windows_x64();
+
         // Map FFI types to LLVM types
         fn map_ffi_type<'ctx>(
             context: &'ctx InkwellContext,
@@ -467,25 +509,63 @@ impl<'ctx> Compiler<'ctx> {
 
         let map_type = |ffi_ty: &FfiType| map_ffi_type(self.context, self.string_ptr_type, ffi_ty);
 
-        // Map parameter types
-        let param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = ffi_func
-            .signature
-            .params
-            .iter()
-            .map(|ty| map_type(ty).into())
-            .collect();
+        // Check if return type needs sret on Windows x64
+        let ret_needs_sret = needs_ptr_passing(&ffi_func.signature.result, is_win64);
+
+        // Build parameter types
+        let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+
+        // If return needs sret, add hidden first parameter (pointer to return struct)
+        if ret_needs_sret {
+            param_types.push(self.string_ptr_type.into());
+        }
+
+        // Map regular parameter types
+        for param_ty in &ffi_func.signature.params {
+            if needs_ptr_passing(param_ty, is_win64) {
+                // Pass large struct by pointer
+                param_types.push(self.string_ptr_type.into());
+            } else {
+                param_types.push(map_type(param_ty).into());
+            }
+        }
 
         // Create function type
-        let fn_type = match &ffi_func.signature.result {
-            FfiType::Unit => self.context.void_type().fn_type(&param_types, false),
-            result_ty => {
-                let ret_type = map_type(result_ty);
-                ret_type.fn_type(&param_types, false)
+        let fn_type = if ret_needs_sret {
+            // With sret, return void (result goes through hidden first param)
+            self.context.void_type().fn_type(&param_types, false)
+        } else {
+            match &ffi_func.signature.result {
+                FfiType::Unit => self.context.void_type().fn_type(&param_types, false),
+                result_ty => {
+                    let ret_type = map_type(result_ty);
+                    ret_type.fn_type(&param_types, false)
+                }
             }
         };
 
         // Declare the function using the symbol name (not the user-facing name)
         let function = self.module.add_function(&ffi_func.symbol, fn_type, None);
+
+        // Add sret attribute if needed
+        if ret_needs_sret {
+            let ret_type: inkwell::types::AnyTypeEnum = match map_type(&ffi_func.signature.result) {
+                BasicTypeEnum::StructType(s) => s.into(),
+                BasicTypeEnum::IntType(i) => i.into(),
+                BasicTypeEnum::FloatType(f) => f.into(),
+                BasicTypeEnum::PointerType(p) => p.into(),
+                BasicTypeEnum::ArrayType(a) => a.into(),
+                BasicTypeEnum::VectorType(v) => v.into(),
+                BasicTypeEnum::ScalableVectorType(v) => v.into(),
+            };
+            function.add_attribute(
+                inkwell::attributes::AttributeLoc::Param(0),
+                self.context.create_type_attribute(
+                    inkwell::attributes::Attribute::get_named_enum_kind_id("sret"),
+                    ret_type,
+                ),
+            );
+        }
 
         // Cache it under the user-facing name
         self.declared_functions.insert(name.to_string(), function);
