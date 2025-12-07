@@ -106,95 +106,51 @@ Returns the capacity of an array.
 
 ## Module: `io` - Input/Output Operations
 
-### `read_line() -> string | nil`
+Wrappers around the runtime I/O primitives (`src/runtime/stdlib/io.rs`). None of these functions are in the prelude, so `use io` is required.
 
-Reads a line from standard input.
+### `read(path: string) -> string`
 
-**Returns:** The line as a string, or `nil` on EOF
+Loads the entire file at `path` into a string. Raises a runtime error if the file cannot be read.
 
-**Example:**
-```otter
-line = read_line()
-if line != nil:
-    println(f"You entered: {line}")
-```
+### `write(path: string, data: string) -> bool`
+
+Writes `data` into `path`, overwriting any existing file. Returns `true` on success.
+
+### `copy(src: string, dst: string) -> bool`
+
+Copies `src` to `dst`. Returns `true` when the operation succeeds.
+
+### `lines(path: string) -> list<string>`
+
+Returns all lines from the file as a list of strings (newline terminators removed).
+
+### `buffer(data: string = "") -> Buffer`
+
+Creates an in-memory buffer seeded with `data`. Buffers expose helper functions:
+
+- `buffer_read(buf, n)` – returns up to `n` bytes from the buffer.
+- `buffer_write(buf, bytes)` – appends bytes and returns `true` on success.
+- `buffer_clear(buf)` – empties the buffer.
+- `buffer_data(buf)` – returns the entire buffer contents as a string.
 
 ## Module: `math` - Mathematical Functions
 
-### `sqrt(x: float) -> float`
+Functions exposed once `use math` is invoked. All functions take/return `float` unless noted.
 
-Returns the square root of x.
-
-**Parameters:**
-- `x`: A non-negative number
-
-**Returns:** The square root
-
-### `sin(x: float) -> float`
-
-Returns the sine of x (in radians).
-
-**Parameters:**
-- `x`: Angle in radians
-
-**Returns:** The sine value
-
-### `cos(x: float) -> float`
-
-Returns the cosine of x (in radians).
-
-**Parameters:**
-- `x`: Angle in radians
-
-**Returns:** The cosine value
-
-### `tan(x: float) -> float`
-
-Returns the tangent of x (in radians).
-
-**Parameters:**
-- `x`: Angle in radians
-
-**Returns:** The tangent value
-
-### `pow(base: float, exponent: float) -> float`
-
-Returns base raised to the power of exponent.
-
-**Parameters:**
-- `base`: The base value
-- `exponent`: The exponent value
-
-**Returns:** base^exponent
-
-### `abs(x: float) -> float`
-
-Returns the absolute value of x.
-
-**Parameters:**
-- `x`: A numeric value
-
-**Returns:** The absolute value
-
-### `max(a: float, b: float) -> float`
-
-Returns the maximum of two values.
-
-**Parameters:**
-- `a`: First value
-- `b`: Second value
-
-**Returns:** The larger of a and b
-
-### `min(a: float, b: float) -> float`
-
-Returns the minimum of two values.
-
-**Parameters:**
-- `a`: First value
-- `b`: Second value
-
-**Returns:** The smaller of a and b
+- `abs(x)` – absolute value.
+- `sqrt(x)` – square root; panics on negative inputs.
+- `pow(x, y)` – `x` raised to `y`.
+- `exp(x)` / `log(x)` – natural exponential/logarithm.
+- `sin(x)`, `cos(x)`, `tan(x)` – trigonometric helpers (radians).
+- `atan2(y, x)` – four-quadrant arctangent.
+- `floor(x)`, `ceil(x)`, `round(x)` – rounding helpers.
+- `clamp(x, min, max)` – clamp value into `[min, max]`.
+- `min(a, b)` / `max(a, b)` – pairwise extrema.
+- `hypot(x, y)` – √(x² + y²).
+- `lerp(a, b, t)` – linear interpolation.
+- `randf()` – pseudo‑random float in [0, 1).
+- `randi(max: int) -> int` – pseudo‑random integer in `[0, max)`.
+- `mean(list<float>, len)` / `std(...)` / `sum(...)` – statistics helpers that operate over the first `len` elements of a float list.
 
 ## Module: `time` - Time and Date Operations
 
