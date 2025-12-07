@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./image.png" width="250">
-    <img src="./image.png" width="250" alt="OtterLang Logo" />
+    <source media="(prefers-color-scheme: dark)" srcset="./image.png" width="200">
+    <img src="./image.png" width="200" alt="OtterLang Logo" />
   </picture>
 </div>
 
