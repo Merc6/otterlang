@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result, anyhow, bail};
+use glob::glob;
 use inkwell::OptimizationLevel;
 use inkwell::context::Context as LlvmContext;
 use inkwell::targets::{CodeModel, FileType, InitializationConfig, RelocMode, Target};
@@ -321,6 +322,19 @@ pub fn build_executable(
             cc.arg("-w"); // Suppress compiler warnings
             // Suppress linker warnings about object files built for newer macOS versions
             cc.arg("-Wl,-w"); // Suppress linker warnings
+        }
+        // Disable conflicting vcrt library and add windows SDK path on Windows
+        if runtime_triple.os == "windows" {
+            cc.arg("-Wl,/NODEFAULTLIB:MSVCRT");
+            // Search for Windows SDK version
+            let mut path = glob("C:/Program Files (x86)/Windows Kits/10/Lib/*")
+                .expect("No Windows SDK found")
+                .filter_map(Result::ok)
+                .find(|p| p.is_dir())
+                .expect("No Windows SDK found");
+            path.push("ucrt");
+            path.push("x64");
+            cc.arg(format!("-Wl,/LIBPATH:{}", path.display()));
         }
 
         // Always link the generated object first

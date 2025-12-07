@@ -3,6 +3,9 @@
 **/*.rs.bk
 *.pdb
 
+# Windows dependencies
+/contrib
+
 # IDE files
 .vscode/
 .idea/
