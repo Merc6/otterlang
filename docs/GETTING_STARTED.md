@@ -103,28 +103,17 @@ cargo +nightly build --release
 **Important:** You must use the **x64 Native Tools Command Prompt for VS 2022** (or Visual Studio Developer Command Prompt) to build. The MSVC linker requires environment variables that are only set in the Developer Command Prompt.
 
 ```powershell
-# Method 1: Using llvmenv (recommended)
-cargo install llvmenv --locked
-llvmenv install 18.1
-llvmenv global 18.1
+# Method 1: Using winget (recommended)
+winget install -e --id LLVM.LLVM -v "18.1.8" --silent --accept-package-agreements --accept-source-agreements
+$env:LLVM_SYS_181_PREFIX = "C:\\Program Files\\LLVM"
+$env:LLVM_SYS_180_PREFIX = $env:LLVM_SYS_181_PREFIX
+$env:Path = "$env:LLVM_SYS_181_PREFIX\\bin;$env:Path"
 
-# Set environment variables for llvmenv
-$llvmPath = llvmenv prefix
-$env:LLVM_SYS_181_PREFIX = $llvmPath
-$env:LLVM_SYS_180_PREFIX = $llvmPath
-$env:Path = "$llvmPath\bin;$env:Path"
-
-# Method 2: Using winget (alternative)
-# winget install --id LLVM.LLVM --silent --accept-package-agreements --accept-source-agreements
-# $env:LLVM_SYS_181_PREFIX = "C:\Program Files\LLVM"
-# $env:LLVM_SYS_180_PREFIX = $env:LLVM_SYS_181_PREFIX
-# $env:Path = "$env:LLVM_SYS_181_PREFIX\bin;$env:Path"
-
-# Method 3: Using Chocolatey (alternative)
-# choco install llvm -y
-# $env:LLVM_SYS_181_PREFIX = "C:\Program Files\LLVM"
-# $env:LLVM_SYS_180_PREFIX = $env:LLVM_SYS_181_PREFIX
-# $env:Path = "$env:LLVM_SYS_181_PREFIX\bin;$env:Path"
+# Method 2: Using Chocolatey (alternative)
+choco install llvm --version=18.1.8 -y
+$env:LLVM_SYS_181_PREFIX = "C:\\Program Files\\LLVM"
+$env:LLVM_SYS_180_PREFIX = $env:LLVM_SYS_181_PREFIX
+$env:Path = "$env:LLVM_SYS_181_PREFIX\\bin;$env:Path"
 
 # Install Rust nightly
 rustup toolchain install nightly
@@ -134,9 +123,7 @@ rustup default nightly
 cargo +nightly build --release
 ```
 
-**Note:** The LLVM installation path may vary depending on the installation method. Common locations are:
-- llvmenv: `%USERPROFILE%\.llvmenv\llvm-18.1`
-- winget/Chocolatey: `C:\Program Files\LLVM`
+**Note:** The LLVM installation path may vary depending on the installation method. A typical location is `C:\\Program Files\\LLVM`.
 
 ## After Building
 
