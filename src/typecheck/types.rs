@@ -756,6 +756,7 @@ pub struct StructDefinition {
     pub name: String,
     pub generics: Vec<String>,
     pub fields: HashMap<String, TypeInfo>,
+    pub public: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -763,6 +764,7 @@ pub struct EnumDefinition {
     pub name: String,
     pub generics: Vec<String>,
     pub variants: Vec<EnumVariant>,
+    pub public: bool,
 }
 
 #[derive(Debug, Clone)]

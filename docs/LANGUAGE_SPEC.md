@@ -192,7 +192,7 @@ for i in 0..count:
 
 `spawn` must be followed by a call expression (`spawn fetch_data(url)`). It schedules that call on the runtime task scheduler and returns an opaque handle. Captured variables are copied into the spawned context, so use channels or shared structures if you need to send a result back.
 
-`await handle` is a thin wrapper around `task.join(handle)`: it blocks until the task finishes and currently returns `unit`. The callee must write results into shared state (channels, maps, etc.) before finishing if you need to read anything after awaiting.
+`await handle` blocks until the task represented by `handle` finishes and yields the value that task returned. Handles are typed as `Task<T>` (or `Future<T>`); awaiting them produces `T`. Tasks that do not explicitly return anything still evaluate to `unit`.
 
 ```otter
 let worker = spawn fetch_data(url)
@@ -380,7 +380,7 @@ Module paths consist of segments separated by `/` or `:` (`use std/io`). Paths m
 
 OtterLang currently ships two layers of concurrency support:
 
-1. **Language-level operators**: `spawn fn_call(...)` schedules a function call on the task runtime and returns a handle. `await handle` blocks until the task finishes (returning `unit`). Exchange data through shared state or `task` channels if you need to observe a result after awaiting.
+1. **Language-level operators**: `spawn fn_call(...)` schedules a function call on the task runtime and returns a handle. `await handle` blocks until the task finishes and evaluates to the task's return value, enabling typed pipelines of `Task<T>` handles.
 2. **Standard library**: `stdlib/otter/task.ot` exposes helpers for spawning tasks, joining or detaching handles, sleeping, working with typed channels, and building `select` statements. `stdlib/otter/sync` adds mutexes, wait groups, atomics, and `Once` primitives for coordinating work across threads.
 
 Example:

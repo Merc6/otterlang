@@ -28,6 +28,33 @@ pub struct TypeChecker {
     current_function_return_type: Option<TypeInfo>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ModuleExports {
+    pub module: String,
+    pub functions: HashMap<String, TypeInfo>,
+    pub variables: HashMap<String, TypeInfo>,
+    pub structs: HashMap<String, StructDefinition>,
+    pub enums: HashMap<String, EnumDefinition>,
+    pub type_aliases: HashMap<String, TypeInfo>,
+}
+
+impl ModuleExports {
+    pub fn new(module: impl Into<String>) -> Self {
+        Self {
+            module: module.into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.functions.is_empty()
+            && self.variables.is_empty()
+            && self.structs.is_empty()
+            && self.enums.is_empty()
+            && self.type_aliases.is_empty()
+    }
+}
+
 impl TypeChecker {
     fn collect_generic_usages(&self, ty: &TypeInfo, used: &mut std::collections::HashSet<String>) {
         match ty {
@@ -685,7 +712,7 @@ impl TypeChecker {
                     fields,
                     methods,
                     generics,
-                    ..
+                    public,
                 } => {
                     let mut field_types = HashMap::new();
                     for (field_name, field_ty) in fields {
@@ -701,28 +728,37 @@ impl TypeChecker {
 
                     for generic in generics {
                         if !used_generics.contains(generic) {
-                            // This is a warning, not an error
-                            // println!("Warning: Generic parameter '{}' is unused in struct '{}'", generic, name);
+                            self.errors.push(
+                                TypeError::new(format!(
+                                    "generic parameter '{}' declared on struct '{}' is never used",
+                                    generic, name
+                                ))
+                                .with_hint("remove the unused generic or use it in a field type".to_string())
+                                .with_span(*statement.span()),
+                            );
                         }
                     }
 
                     for used in &used_generics {
                         if !generics.contains(used) {
-                            // Check if it's a known type (like T in a generic function) or if it's truly undefined
-                            // For structs, all generics must be declared.
-                            // However, we might be using a generic from an outer scope?
-                            // OtterLang structs are top-level, so they only see their own generics.
-                            // But wait, what if 'T' is actually a type alias or another struct?
-                            // collect_generic_usages should only collect things that look like generics (single char uppercase?)
-                            // Or better, we should check if the type is resolvable.
-                            // If `ty` was created via `type_from_annotation`, it should have already resolved known types.
-                            // If it remains `TypeInfo::Generic`, it means it wasn't a known concrete type.
+                            self.errors.push(
+                                TypeError::new(format!(
+                                    "generic parameter '{}' used in struct '{}' but not declared",
+                                    used, name
+                                ))
+                                .with_hint(format!(
+                                    "add '{}' to the struct's generic parameter list",
+                                    used
+                                ))
+                                .with_span(*statement.span()),
+                            );
                         }
                     }
                     let definition = StructDefinition {
                         name: name.clone(),
                         generics: generics.clone(),
                         fields: field_types,
+                        public: *public,
                     };
                     self.context.define_struct(definition);
 
@@ -762,12 +798,13 @@ impl TypeChecker {
                     name,
                     variants,
                     generics,
-                    ..
+                    public,
                 } => {
                     let definition = EnumDefinition {
                         name: name.clone(),
                         generics: generics.clone(),
                         variants: variants.iter().map(|v| v.as_ref()).cloned().collect(),
+                        public: *public,
                     };
                     self.context.define_enum(definition);
                 }
@@ -2756,35 +2793,32 @@ impl TypeChecker {
                     })
                 }
                 Expr::Await(expr) => {
-                    // Await expects an async/awaitable type
                     let inner_type = self.infer_expr_type(expr)?;
-                    let awaited_type =
-                        matches!(&inner_type, TypeInfo::Generic { base, .. } if base == "Task");
 
-                    // Check if inner_type is actually awaitable
-                    match &inner_type {
-                        // Task handles from spawn operations (generic types)
-                        TypeInfo::Generic { base, args: _ }
-                            if base == "Task" || base == "Future" =>
+                    let (is_task_handle, payload_type) = match &inner_type {
+                        TypeInfo::Generic { base, args }
+                            if (base == "Task" || base == "Future") && !args.is_empty() =>
                         {
-                            // Explicitly async types are awaitable
+                            (true, args[0].clone())
                         }
-                        // Any type for now - in early development, be permissive
-                        // In a full implementation, we'd be more restrictive
-                        _ => {
-                            // For now, allow awaiting on any type since async system is in development
-                            // TODO: Restrict to only proper async types when the async system matures
+                        TypeInfo::Generic { base, .. } if base == "Task" || base == "Future" => {
+                            (true, TypeInfo::Unknown)
                         }
-                    }
+                        _ => (false, TypeInfo::Unit),
+                    };
 
-                    if !awaited_type {
+                    if !is_task_handle && !matches!(inner_type, TypeInfo::Unknown | TypeInfo::Error)
+                    {
                         self.errors.push(
-                            TypeError::new("await expects a Task handle".to_string())
-                                .with_span(*expr.span()),
+                            TypeError::new(format!(
+                                "await expects a Task handle, got {}",
+                                inner_type.display_name()
+                            ))
+                            .with_span(*expr.span()),
                         );
                     }
 
-                    Ok(TypeInfo::Unit)
+                    Ok(payload_type)
                 }
                 Expr::Spawn(expr) => {
                     // Spawn creates a task from an expression
@@ -2828,6 +2862,75 @@ impl TypeChecker {
 
     pub fn enum_layouts(&self) -> HashMap<String, EnumLayout> {
         self.context.enum_layouts()
+    }
+
+    pub fn collect_public_exports(&self, module_name: &str, program: &Program) -> ModuleExports {
+        let mut exports = ModuleExports::new(module_name.to_string());
+        for statement in &program.statements {
+            match statement.as_ref() {
+                Statement::Function(function) if function.as_ref().public => {
+                    if let Some(sig) = self.context.functions.get(&function.as_ref().name).cloned()
+                    {
+                        exports
+                            .functions
+                            .insert(function.as_ref().name.clone(), sig);
+                    }
+                }
+                Statement::Struct { name, public, .. } if *public => {
+                    if let Some(def) = self.context.get_struct(name).cloned() {
+                        exports.structs.insert(name.clone(), def);
+                    }
+                }
+                Statement::Enum { name, public, .. } if *public => {
+                    if let Some(def) = self.context.get_enum(name).cloned() {
+                        exports.enums.insert(name.clone(), def);
+                    }
+                }
+                Statement::TypeAlias { name, public, .. } if *public => {
+                    if let Some(alias) = self.context.resolve_type_alias(name).cloned() {
+                        exports.type_aliases.insert(name.clone(), alias);
+                    }
+                }
+                Statement::Let { name, public, .. } if *public => {
+                    if let Some(var_type) = self.context.get_variable(name.as_ref()).cloned() {
+                        exports.variables.insert(name.as_ref().clone(), var_type);
+                    }
+                }
+                _ => {}
+            }
+        }
+        exports
+    }
+
+    pub fn import_module_exports(&mut self, alias: &str, exports: &ModuleExports) {
+        if exports.is_empty() {
+            return;
+        }
+
+        self.context
+            .insert_variable(alias.to_string(), TypeInfo::Module(exports.module.clone()));
+
+        for (name, ty) in &exports.functions {
+            let qualified = format!("{}.{}", exports.module, name);
+            self.context.insert_function(qualified, ty.clone());
+        }
+
+        for (name, ty) in &exports.variables {
+            let qualified = format!("{}.{}", exports.module, name);
+            self.context.insert_variable(qualified, ty.clone());
+        }
+
+        for def in exports.structs.values() {
+            self.context.define_struct(def.clone());
+        }
+
+        for def in exports.enums.values() {
+            self.context.define_enum(def.clone());
+        }
+
+        for (name, ty) in &exports.type_aliases {
+            self.context.type_aliases.insert(name.clone(), ty.clone());
+        }
     }
 
     fn build_member_path(&self, object: &Node<Expr>, field: &str) -> String {
