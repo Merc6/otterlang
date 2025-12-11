@@ -1,8 +1,6 @@
 use otterc_span::Span;
-use std::fmt;
-use std::hash::{Hash, Hasher};
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub enum TokenKind {
     // Keywords
     Fn,
@@ -87,114 +85,6 @@ pub enum TokenKind {
     DoubleDot,
 
     Eof,
-}
-
-impl Hash for TokenKind {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            // Keywords - use discriminant for efficiency
-            TokenKind::Fn => 0u16.hash(state),
-            TokenKind::Let => 1u16.hash(state),
-            TokenKind::Return => 2u16.hash(state),
-            TokenKind::If => 3u16.hash(state),
-            TokenKind::Else => 4u16.hash(state),
-            TokenKind::Elif => 5u16.hash(state),
-            TokenKind::For => 6u16.hash(state),
-            TokenKind::While => 7u16.hash(state),
-            TokenKind::Break => 8u16.hash(state),
-            TokenKind::Continue => 9u16.hash(state),
-            TokenKind::Pass => 10u16.hash(state),
-            TokenKind::In => 11u16.hash(state),
-            TokenKind::Is => 12u16.hash(state),
-            TokenKind::Not => 13u16.hash(state),
-            TokenKind::Use => 14u16.hash(state),
-            TokenKind::As => 15u16.hash(state),
-            TokenKind::Pub => 16u16.hash(state),
-            TokenKind::Await => 17u16.hash(state),
-            TokenKind::Spawn => 18u16.hash(state),
-            TokenKind::Match => 19u16.hash(state),
-            TokenKind::Case => 20u16.hash(state),
-            TokenKind::True => 21u16.hash(state),
-            TokenKind::False => 22u16.hash(state),
-            TokenKind::Print => 23u16.hash(state),
-            TokenKind::None => 24u16.hash(state),
-            TokenKind::Struct => 25u16.hash(state),
-            TokenKind::Enum => 26u16.hash(state),
-            TokenKind::And => 27u16.hash(state),
-            TokenKind::Or => 28u16.hash(state),
-
-            // Identifiers
-            TokenKind::Identifier(name) => {
-                100u16.hash(state);
-                name.hash(state);
-            }
-            TokenKind::UnicodeIdentifier(name) => {
-                101u16.hash(state);
-                name.hash(state);
-            }
-
-            // Literals
-            TokenKind::Number(value) => {
-                200u16.hash(state);
-                value.hash(state);
-            }
-            TokenKind::StringLiteral(value) => {
-                201u16.hash(state);
-                value.hash(state);
-            }
-            TokenKind::FString(content) => {
-                202u16.hash(state);
-                content.hash(state);
-            }
-            TokenKind::Bool(value) => {
-                203u16.hash(state);
-                value.hash(state);
-            }
-
-            // Structural tokens - use their ASCII values for consistency
-            TokenKind::Colon => b':'.hash(state),
-            TokenKind::Newline => b'\n'.hash(state),
-            TokenKind::Indent => 300u16.hash(state),
-            TokenKind::Dedent => 301u16.hash(state),
-            TokenKind::LParen => b'('.hash(state),
-            TokenKind::RParen => b')'.hash(state),
-            TokenKind::LBrace => b'{'.hash(state),
-            TokenKind::RBrace => b'}'.hash(state),
-            TokenKind::LBracket => b'['.hash(state),
-            TokenKind::RBracket => b']'.hash(state),
-            TokenKind::Comma => b','.hash(state),
-            TokenKind::Dot => b'.'.hash(state),
-
-            // Operators
-            TokenKind::Arrow => 400u16.hash(state),
-            TokenKind::Equals => b'='.hash(state),
-            TokenKind::EqEq => 401u16.hash(state),
-            TokenKind::Neq => 402u16.hash(state),
-            TokenKind::Lt => b'<'.hash(state),
-            TokenKind::Gt => b'>'.hash(state),
-            TokenKind::LtEq => 403u16.hash(state),
-            TokenKind::GtEq => 404u16.hash(state),
-            TokenKind::Plus => b'+'.hash(state),
-            TokenKind::Minus => b'-'.hash(state),
-            TokenKind::Star => b'*'.hash(state),
-            TokenKind::Slash => b'/'.hash(state),
-            TokenKind::Percent => b'%'.hash(state),
-            TokenKind::Pipe => b'|'.hash(state),
-            TokenKind::Amp => b'&'.hash(state),
-            TokenKind::Bang => b'!'.hash(state),
-
-            // Assignment operators
-            TokenKind::PlusEq => 500u16.hash(state),
-            TokenKind::MinusEq => 501u16.hash(state),
-            TokenKind::StarEq => 502u16.hash(state),
-            TokenKind::SlashEq => 503u16.hash(state),
-
-            // Range operator
-            TokenKind::DoubleDot => 600u16.hash(state),
-
-            TokenKind::Eof => 999u16.hash(state),
-        }
-    }
 }
 
 // FStringPart is now defined in the AST module
@@ -289,21 +179,7 @@ impl TokenKind {
     }
 }
 
-impl fmt::Debug for TokenKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TokenKind::Identifier(name) => write!(f, "Identifier({name})"),
-            TokenKind::UnicodeIdentifier(name) => write!(f, "UnicodeIdentifier({name})"),
-            TokenKind::Number(number) => write!(f, "Number({number})"),
-            TokenKind::StringLiteral(value) => write!(f, "StringLiteral(\"{value}\")"),
-            TokenKind::FString(content) => write!(f, "FString(\"{}\")", content),
-            TokenKind::Bool(value) => write!(f, "Bool({value})"),
-            kind => f.write_str(kind.name()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Token {
     kind: TokenKind,
     span: Span,
@@ -425,12 +301,5 @@ impl Token {
                 | TokenKind::Comma
                 | TokenKind::Dot
         )
-    }
-}
-
-impl Hash for Token {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.kind.hash(state);
-        self.span.hash(state);
     }
 }
