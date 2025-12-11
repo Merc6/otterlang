@@ -844,10 +844,6 @@ impl LexerState {
     }
 }
 
-pub fn tokenize_legacy(source: &str) -> LexResult<Vec<Token>> {
-    tokenize(source)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
