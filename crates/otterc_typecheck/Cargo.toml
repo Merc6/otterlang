@@ -10,7 +10,7 @@ otterc_span.path = "../otterc_span"
 otterc_symbol.path = "../otterc_symbol"
 otterc_utils.path = "../otterc_utils"
 
-anyhow = "1.0"
+anyhow.workspace = true
 
 [lints]
 workspace = true

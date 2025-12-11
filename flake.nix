@@ -46,6 +46,8 @@
               llvm.llvm
               libffi
               libxml2
+              zstd
+              libedit
             ]
             ++ lib.optionals (hasInfix "linux" system) [
               mold

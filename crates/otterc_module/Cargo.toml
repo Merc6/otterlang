@@ -8,8 +8,8 @@ otterc_ast.path = "../otterc_ast"
 otterc_lexer.path = "../otterc_lexer"
 otterc_parser.path = "../otterc_parser"
 
-anyhow = "1.0"
-tempfile = "3.10"
+anyhow.workspace = true
+tempfile.workspace = true
 
 [lints]
 workspace = true
