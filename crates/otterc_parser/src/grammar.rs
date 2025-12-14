@@ -6,7 +6,7 @@ use otterc_ast::nodes::{
     NumberLiteral, Param, Pattern, Program, Statement, Type, UnaryOp, UseImport,
 };
 
-use otterc_lexer::token::{Token, TokenKind};
+use otterc_lexer::{Lexeme, Token};
 use otterc_span::Span;
 use otterc_utils::errors::{Diagnostic, DiagnosticSeverity};
 use std::ops::Range;
@@ -40,8 +40,8 @@ impl ParserError {
     }
 }
 
-impl From<Simple<TokenKind>> for ParserError {
-    fn from(value: Simple<TokenKind>) -> Self {
+impl<'src> From<Simple<Lexeme>> for ParserError {
+    fn from(value: Simple<Lexeme>) -> Self {
         let span_range = value.span();
         let span = Span::new(span_range.start, span_range.end);
         let message = if let Some(found) = value.found() {
@@ -65,7 +65,7 @@ pub fn parse(tokens: &[Token]) -> Result<Program, Vec<ParserError>> {
         end..end + 1,
         tokens
             .iter()
-            .map(|token| (token.kind().clone(), token.span().into())),
+            .map(|token| (token.lexeme().clone(), token.span().into())),
     );
 
     parser
@@ -73,46 +73,46 @@ pub fn parse(tokens: &[Token]) -> Result<Program, Vec<ParserError>> {
         .map_err(|errors| errors.into_iter().map(ParserError::from).collect())
 }
 
-fn identifier_parser() -> impl Parser<TokenKind, String, Error = Simple<TokenKind>> {
-    select! { TokenKind::Identifier(name) => name }
+fn identifier_parser<'src>() -> impl Parser<Token<'src>, String, Error = Simple<Token<'src>>> {
+    select! { tk @ Token { lexeme: Lexeme::Identifier, .. } => tk.source() }
 }
 
-fn identifier_or_keyword_parser() -> impl Parser<TokenKind, String, Error = Simple<TokenKind>> {
+fn identifier_or_keyword_parser() -> impl Parser<Lexeme, String, Error = Simple<Lexeme>> {
     select! {
-        TokenKind::Identifier(name) => name,
-        TokenKind::Fn => "fn".to_string(),
-        TokenKind::Return => "return".to_string(),
-        TokenKind::If => "if".to_string(),
-        TokenKind::Else => "else".to_string(),
-        TokenKind::Elif => "elif".to_string(),
-        TokenKind::For => "for".to_string(),
-        TokenKind::While => "while".to_string(),
-        TokenKind::Break => "break".to_string(),
-        TokenKind::Continue => "continue".to_string(),
-        TokenKind::Pass => "pass".to_string(),
-        TokenKind::In => "in".to_string(),
-        TokenKind::Is => "is".to_string(),
-        TokenKind::Not => "not".to_string(),
-        TokenKind::Use => "use".to_string(),
-        TokenKind::As => "as".to_string(),
-        TokenKind::Await => "await".to_string(),
-        TokenKind::Spawn => "spawn".to_string(),
-        TokenKind::Match => "match".to_string(),
-        TokenKind::Case => "case".to_string(),
-        TokenKind::True => "true".to_string(),
-        TokenKind::False => "false".to_string(),
-        TokenKind::Print => "print".to_string(),
-        TokenKind::None => "None".to_string(),
+        Lexeme::Identifier(name) => name,
+        Lexeme::Fn => "fn".to_string(),
+        Lexeme::Return => "return".to_string(),
+        Lexeme::If => "if".to_string(),
+        Lexeme::Else => "else".to_string(),
+        Lexeme::Elif => "elif".to_string(),
+        Lexeme::For => "for".to_string(),
+        Lexeme::While => "while".to_string(),
+        Lexeme::Break => "break".to_string(),
+        Lexeme::Continue => "continue".to_string(),
+        Lexeme::Pass => "pass".to_string(),
+        Lexeme::In => "in".to_string(),
+        Lexeme::Is => "is".to_string(),
+        Lexeme::Not => "not".to_string(),
+        Lexeme::Use => "use".to_string(),
+        Lexeme::As => "as".to_string(),
+        Lexeme::Await => "await".to_string(),
+        Lexeme::Spawn => "spawn".to_string(),
+        Lexeme::Match => "match".to_string(),
+        Lexeme::Case => "case".to_string(),
+        Lexeme::True => "true".to_string(),
+        Lexeme::False => "false".to_string(),
+        Lexeme::Print => "print".to_string(),
+        Lexeme::None => "None".to_string(),
     }
 }
 
-fn type_parser() -> impl Parser<TokenKind, Node<Type>, Error = Simple<TokenKind>> {
+fn type_parser() -> impl Parser<Lexeme, Node<Type>, Error = Simple<Lexeme>> {
     recursive(|ty| {
         identifier_parser()
             .then(
-                ty.separated_by(just(TokenKind::Comma))
+                ty.separated_by(just(Lexeme::Comma))
                     .allow_trailing()
-                    .delimited_by(just(TokenKind::Lt), just(TokenKind::Gt))
+                    .delimited_by(just(Lexeme::Lt), just(Lexeme::Gt))
                     .or_not(),
             )
             .map_with_span(|(base, args), span| {
@@ -251,14 +251,14 @@ fn parse_fstring(content: String, span: impl Into<Span>) -> Node<Expr> {
     Node::new(Expr::FString { parts }, span)
 }
 
-fn literal_expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>> {
-    let string_lit = select! { TokenKind::StringLiteral(value) => Literal::String(value) }
+fn literal_expr_parser() -> impl Parser<Lexeme, Node<Expr>, Error = Simple<Lexeme>> {
+    let string_lit = select! { Lexeme::StringLiteral(value) => Literal::String(value) }
         .map_with_span(|lit, span: Range<usize>| {
             let span: Span = span.into();
             Node::new(Expr::Literal(Node::new(lit, span)), span)
         })
         .boxed();
-    let number_lit = select! { TokenKind::Number(value) => {
+    let number_lit = select! { Lexeme::Number(value) => {
         // Remove underscores from the number
         let clean_value = value.replace('_', "");
         let is_float_literal = value.contains('.') || value.contains('e') || value.contains('E');
@@ -285,15 +285,15 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<To
     })
     .boxed();
     let bool_lit = select! {
-        TokenKind::True => Literal::Bool(true),
-        TokenKind::False => Literal::Bool(false),
+        Lexeme::True => Literal::Bool(true),
+        Lexeme::False => Literal::Bool(false),
     }
     .map_with_span(|lit, span: Range<usize>| {
         let span: Span = span.into();
         Node::new(Expr::Literal(Node::new(lit, span)), span)
     })
     .boxed();
-    let none_lit = just(TokenKind::None)
+    let none_lit = just(Lexeme::None)
         .to(Literal::None)
         .map_with_span(|lit, span: Range<usize>| {
             let span: Span = span.into();
@@ -301,9 +301,9 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<To
         })
         .boxed();
     let fstring_lit =
-        select! { |span| TokenKind::FString(content) => parse_fstring(content, span) }.boxed();
-    let unit_lit = just(TokenKind::LParen)
-        .then(just(TokenKind::RParen))
+        select! { |span| Lexeme::FString(content) => parse_fstring(content, span) }.boxed();
+    let unit_lit = just(Lexeme::LParen)
+        .then(just(Lexeme::RParen))
         .map_with_span(|_, span: Range<usize>| {
             let span: Span = span.into();
             Node::new(Expr::Literal(Node::new(Literal::Unit, span)), span)
@@ -319,7 +319,7 @@ fn literal_expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<To
     ))
 }
 
-fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>> {
+fn expr_parser() -> impl Parser<Lexeme, Node<Expr>, Error = Simple<Lexeme>> {
     recursive(|expr| {
         // Lambda expressions removed - use anonymous fn syntax instead
         // fn(<args>) expr or fn(<args>): <stmts>
@@ -328,12 +328,12 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .then(
                 // Keyword argument: name=value
                 identifier_parser()
-                    .then_ignore(just(TokenKind::Equals))
+                    .then_ignore(just(Lexeme::Equals))
                     .then(expr.clone())
-                    .separated_by(just(TokenKind::Comma))
+                    .separated_by(just(Lexeme::Comma))
                     .at_least(1)
                     .allow_trailing()
-                    .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                    .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen)),
             )
             .map_with_span(|(name, fields), span| {
                 Node::new(
@@ -348,11 +348,11 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
 
         let list_comprehension = expr
             .clone()
-            .then_ignore(just(TokenKind::For))
+            .then_ignore(just(Lexeme::For))
             .then(identifier_parser())
-            .then_ignore(just(TokenKind::In))
+            .then_ignore(just(Lexeme::In))
             .then(expr.clone())
-            .then(just(TokenKind::If).ignore_then(expr.clone()).or_not())
+            .then(just(Lexeme::If).ignore_then(expr.clone()).or_not())
             .map_with_span(|(((element, var), iterable), condition), span| {
                 Node::new(
                     Expr::ListComprehension {
@@ -364,18 +364,18 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
                     span,
                 )
             })
-            .delimited_by(just(TokenKind::LBracket), just(TokenKind::RBracket))
+            .delimited_by(just(Lexeme::LBracket), just(Lexeme::RBracket))
             .boxed();
 
         let dict_comprehension = expr
             .clone()
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then(expr.clone())
-            .then_ignore(just(TokenKind::For))
+            .then_ignore(just(Lexeme::For))
             .then(identifier_parser())
-            .then_ignore(just(TokenKind::In))
+            .then_ignore(just(Lexeme::In))
             .then(expr.clone())
-            .then(just(TokenKind::If).ignore_then(expr.clone()).or_not())
+            .then(just(Lexeme::If).ignore_then(expr.clone()).or_not())
             .map_with_span(|((((key, value), var), iterable), condition), span| {
                 Node::new(
                     Expr::DictComprehension {
@@ -388,7 +388,7 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
                     span,
                 )
             })
-            .delimited_by(just(TokenKind::LBrace), just(TokenKind::RBrace))
+            .delimited_by(just(Lexeme::LBrace), just(Lexeme::RBrace))
             .boxed();
 
         let atom = choice((
@@ -396,22 +396,22 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             struct_init_pythonic,
             identifier_parser().map_with_span(|name, span| Node::new(Expr::Identifier(name), span)),
             expr.clone()
-                .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen)),
             list_comprehension,
             // Array literal [expr, expr, ...]
             expr.clone()
-                .separated_by(just(TokenKind::Comma))
+                .separated_by(just(Lexeme::Comma))
                 .allow_trailing()
-                .delimited_by(just(TokenKind::LBracket), just(TokenKind::RBracket))
+                .delimited_by(just(Lexeme::LBracket), just(Lexeme::RBracket))
                 .map_with_span(|array, span| Node::new(Expr::Array(array), span)),
             dict_comprehension,
             // Dictionary literal {key: value, ...}
             expr.clone()
-                .then_ignore(just(TokenKind::Colon))
+                .then_ignore(just(Lexeme::Colon))
                 .then(expr.clone())
-                .separated_by(just(TokenKind::Comma))
+                .separated_by(just(Lexeme::Comma))
                 .allow_trailing()
-                .delimited_by(just(TokenKind::LBrace), just(TokenKind::RBrace))
+                .delimited_by(just(Lexeme::LBrace), just(Lexeme::RBrace))
                 .map_with_span(|dict, span| Node::new(Expr::Dict(dict), span)),
         ))
         .boxed();
@@ -419,7 +419,7 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
         let member_access = atom
             .clone()
             .then(
-                just(TokenKind::Dot)
+                just(Lexeme::Dot)
                     .ignore_then(identifier_or_keyword_parser())
                     .map_with_span(Node::new)
                     .repeated(),
@@ -436,15 +436,15 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let call_suffix = just(TokenKind::LParen)
+        let call_suffix = just(Lexeme::LParen)
             .ignore_then(
                 expr.clone()
-                    .separated_by(just(TokenKind::Comma))
+                    .separated_by(just(Lexeme::Comma))
                     .allow_trailing()
                     .or_not()
                     .map(|args| args.unwrap_or_default()),
             )
-            .then_ignore(just(TokenKind::RParen))
+            .then_ignore(just(Lexeme::RParen))
             .boxed();
 
         let call = member_access
@@ -464,20 +464,20 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let await_expr = just(TokenKind::Await)
+        let await_expr = just(Lexeme::Await)
             .ignore_then(call.clone())
             .map_with_span(|expr, span| Node::new(Expr::Await(Box::new(expr)), span))
             .boxed();
 
-        let spawn_expr = just(TokenKind::Spawn)
+        let spawn_expr = just(Lexeme::Spawn)
             .ignore_then(call.clone())
             .map_with_span(|expr, span| Node::new(Expr::Spawn(Box::new(expr)), span))
             .boxed();
 
         let unary = choice((
-            just(TokenKind::Minus).to(UnaryOp::Neg),
-            just(TokenKind::Bang).to(UnaryOp::Not),
-            just(TokenKind::Not).to(UnaryOp::Not),
+            just(Lexeme::Minus).to(UnaryOp::Neg),
+            just(Lexeme::Bang).to(UnaryOp::Not),
+            just(Lexeme::Not).to(UnaryOp::Not),
         ))
         .then(choice((
             await_expr.clone(),
@@ -502,9 +502,9 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .clone()
             .then(
                 choice((
-                    just(TokenKind::Star).to(BinaryOp::Mul),
-                    just(TokenKind::Slash).to(BinaryOp::Div),
-                    just(TokenKind::Percent).to(BinaryOp::Mod),
+                    just(Lexeme::Star).to(BinaryOp::Mul),
+                    just(Lexeme::Slash).to(BinaryOp::Div),
+                    just(Lexeme::Percent).to(BinaryOp::Mod),
                 ))
                 .then(unary.clone())
                 .repeated(),
@@ -526,8 +526,8 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .clone()
             .then(
                 choice((
-                    just(TokenKind::Plus).to(BinaryOp::Add),
-                    just(TokenKind::Minus).to(BinaryOp::Sub),
+                    just(Lexeme::Plus).to(BinaryOp::Add),
+                    just(Lexeme::Minus).to(BinaryOp::Sub),
                 ))
                 .then(product)
                 .repeated(),
@@ -547,7 +547,7 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
 
         let range = sum
             .clone()
-            .then(just(TokenKind::DoubleDot).ignore_then(sum.clone()).or_not())
+            .then(just(Lexeme::DoubleDot).ignore_then(sum.clone()).or_not())
             .map_with_span(|(start, end), span| {
                 if let Some(end) = end {
                     Node::new(
@@ -563,8 +563,8 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let is_operator = just(TokenKind::Is)
-            .ignore_then(just(TokenKind::Not).or_not())
+        let is_operator = just(Lexeme::Is)
+            .ignore_then(just(Lexeme::Not).or_not())
             .map(|not_opt| {
                 if not_opt.is_some() {
                     BinaryOp::IsNot
@@ -575,12 +575,12 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .boxed();
 
         let comparison_op = choice((
-            just(TokenKind::EqEq).to(BinaryOp::Eq),
-            just(TokenKind::Neq).to(BinaryOp::Ne),
-            just(TokenKind::Lt).to(BinaryOp::Lt),
-            just(TokenKind::Gt).to(BinaryOp::Gt),
-            just(TokenKind::LtEq).to(BinaryOp::LtEq),
-            just(TokenKind::GtEq).to(BinaryOp::GtEq),
+            just(Lexeme::EqEq).to(BinaryOp::Eq),
+            just(Lexeme::Neq).to(BinaryOp::Ne),
+            just(Lexeme::Lt).to(BinaryOp::Lt),
+            just(Lexeme::Gt).to(BinaryOp::Gt),
+            just(Lexeme::LtEq).to(BinaryOp::LtEq),
+            just(Lexeme::GtEq).to(BinaryOp::GtEq),
             is_operator,
         ))
         .boxed();
@@ -605,8 +605,8 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .clone()
             .then(
                 choice((
-                    just(TokenKind::And).to(BinaryOp::And),
-                    just(TokenKind::Or).to(BinaryOp::Or),
+                    just(Lexeme::And).to(BinaryOp::And),
+                    just(Lexeme::Or).to(BinaryOp::Or),
                 ))
                 .then(comparison)
                 .repeated(),
@@ -624,16 +624,16 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let newline = just(TokenKind::Newline).repeated().at_least(1);
+        let newline = just(Lexeme::Newline).repeated().at_least(1);
 
         // Define a local statement parser for match arms to avoid circular dependency
         // This duplicates some logic from program_parser but is necessary because expr_parser
         // cannot easily access the recursive statement parser from program_parser.
         let match_stmt = recursive(|_stmt| {
-            let print_stmt = just(TokenKind::Print)
+            let print_stmt = just(Lexeme::Print)
                 .ignore_then(
                     expr.clone()
-                        .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                        .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen)),
                 )
                 .map_with_span(|arg, span| {
                     let span: Span = span.into();
@@ -653,19 +653,19 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
                 })
                 .boxed();
 
-            let return_stmt = just(TokenKind::Return)
+            let return_stmt = just(Lexeme::Return)
                 .ignore_then(expr.clone().or_not())
                 .map_with_span(|expr, span| Node::new(Statement::Return(expr), span))
                 .boxed();
 
-            let let_stmt = just(TokenKind::Let)
+            let let_stmt = just(Lexeme::Let)
                 .or_not()
                 .then(
                     identifier_parser()
                         .map_with_span(Node::new)
-                        .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not()),
+                        .then(just(Lexeme::Colon).ignore_then(type_parser()).or_not()),
                 )
-                .then_ignore(just(TokenKind::Equals))
+                .then_ignore(just(Lexeme::Equals))
                 .then(expr.clone())
                 .map_with_span(|((_let, (name, ty)), expr), span| {
                     Node::new(
@@ -682,10 +682,10 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             let assignment_stmt = identifier_parser()
                 .map_with_span(|name, span| (name, Span::new(span.start, span.end)))
                 .then(choice((
-                    just(TokenKind::PlusEq).to(BinaryOp::Add),
-                    just(TokenKind::MinusEq).to(BinaryOp::Sub),
-                    just(TokenKind::StarEq).to(BinaryOp::Mul),
-                    just(TokenKind::SlashEq).to(BinaryOp::Div),
+                    just(Lexeme::PlusEq).to(BinaryOp::Add),
+                    just(Lexeme::MinusEq).to(BinaryOp::Sub),
+                    just(Lexeme::StarEq).to(BinaryOp::Mul),
+                    just(Lexeme::SlashEq).to(BinaryOp::Div),
                 )))
                 .then(expr.clone())
                 .map_with_span(|(((name, name_span), op), rhs), span| {
@@ -711,22 +711,22 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             // Simple assignment (=)
             let simple_assignment = identifier_parser()
                 .map_with_span(Node::new)
-                .then_ignore(just(TokenKind::Equals))
+                .then_ignore(just(Lexeme::Equals))
                 .then(expr.clone())
                 .map_with_span(|(name, expr), span| {
                     Node::new(Statement::Assignment { name, expr }, span)
                 })
                 .boxed();
 
-            let pass_stmt = just(TokenKind::Pass)
+            let pass_stmt = just(Lexeme::Pass)
                 .map_with_span(|_, span| Node::new(Statement::Pass, span))
                 .boxed();
 
-            let break_stmt = just(TokenKind::Break)
+            let break_stmt = just(Lexeme::Break)
                 .map_with_span(|_, span| Node::new(Statement::Break, span))
                 .boxed();
 
-            let continue_stmt = just(TokenKind::Continue)
+            let continue_stmt = just(Lexeme::Continue)
                 .map_with_span(|_, span| Node::new(Statement::Continue, span))
                 .boxed();
 
@@ -746,16 +746,16 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .boxed()
         });
 
-        let match_case = just(TokenKind::Case)
+        let match_case = just(Lexeme::Case)
             .ignore_then(pattern_parser())
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then_ignore(newline.clone())
             .then(
                 match_stmt
                     .clone()
                     .repeated()
                     .at_least(1)
-                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                     .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
             .map_with_span(|(pattern, body), span| {
@@ -771,14 +771,14 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
             .then_ignore(newline.clone().or_not())
             .boxed();
 
-        just(TokenKind::Match)
+        just(Lexeme::Match)
             .ignore_then(logical.clone())
             .then(
-                just(TokenKind::Colon)
+                just(Lexeme::Colon)
                     .ignore_then(newline.clone())
-                    .ignore_then(just(TokenKind::Indent))
+                    .ignore_then(just(Lexeme::Indent))
                     .ignore_then(match_case.repeated().at_least(1))
-                    .then_ignore(just(TokenKind::Dedent)),
+                    .then_ignore(just(Lexeme::Dedent)),
             )
             .map_with_span(|(value, arms), span| {
                 Node::new(
@@ -794,9 +794,9 @@ fn expr_parser() -> impl Parser<TokenKind, Node<Expr>, Error = Simple<TokenKind>
 }
 
 /// Pattern parser for match expressions
-fn pattern_parser() -> impl Parser<TokenKind, Node<Pattern>, Error = Simple<TokenKind>> {
+fn pattern_parser() -> impl Parser<Lexeme, Node<Pattern>, Error = Simple<Lexeme>> {
     recursive(|pattern| {
-        let wildcard = just(TokenKind::Identifier("_".to_string()))
+        let wildcard = just(Lexeme::Identifier("_".to_string()))
             .map_with_span(|_, span| Node::new(Pattern::Wildcard, span))
             .boxed();
 
@@ -818,22 +818,22 @@ fn pattern_parser() -> impl Parser<TokenKind, Node<Pattern>, Error = Simple<Toke
 
         let variant_name = choice((
             identifier_parser(),
-            just(TokenKind::None).to("None".to_string()),
+            just(Lexeme::None).to("None".to_string()),
         ))
         .boxed();
 
         let enum_variant_pattern = identifier_parser()
-            .then_ignore(just(TokenKind::Dot))
+            .then_ignore(just(Lexeme::Dot))
             .then(variant_name)
             .then(
-                just(TokenKind::LParen)
+                just(Lexeme::LParen)
                     .ignore_then(
                         pattern
                             .clone()
-                            .separated_by(just(TokenKind::Comma))
+                            .separated_by(just(Lexeme::Comma))
                             .allow_trailing(),
                     )
-                    .then_ignore(just(TokenKind::RParen))
+                    .then_ignore(just(Lexeme::RParen))
                     .or_not(),
             )
             .map_with_span(|((enum_name, variant), fields), span| {
@@ -850,14 +850,14 @@ fn pattern_parser() -> impl Parser<TokenKind, Node<Pattern>, Error = Simple<Toke
 
         let struct_pattern = identifier_parser()
             .then(
-                just(TokenKind::LBrace)
+                just(Lexeme::LBrace)
                     .ignore_then(
                         identifier_parser()
-                            .then(just(TokenKind::Colon).ignore_then(pattern.clone()).or_not())
-                            .separated_by(just(TokenKind::Comma))
+                            .then(just(Lexeme::Colon).ignore_then(pattern.clone()).or_not())
+                            .separated_by(just(Lexeme::Comma))
                             .allow_trailing(),
                     )
-                    .then_ignore(just(TokenKind::RBrace)),
+                    .then_ignore(just(Lexeme::RBrace)),
             )
             .map_with_span(|(name, fields), span| {
                 Node::new(
@@ -872,11 +872,11 @@ fn pattern_parser() -> impl Parser<TokenKind, Node<Pattern>, Error = Simple<Toke
 
         let array_pattern = pattern
             .clone()
-            .separated_by(just(TokenKind::Comma))
+            .separated_by(just(Lexeme::Comma))
             .allow_trailing()
-            .delimited_by(just(TokenKind::LBracket), just(TokenKind::RBracket))
+            .delimited_by(just(Lexeme::LBracket), just(Lexeme::RBracket))
             .then(
-                just(TokenKind::DoubleDot)
+                just(Lexeme::DoubleDot)
                     .ignore_then(identifier_parser())
                     .or_not(),
             )
@@ -896,14 +896,14 @@ fn pattern_parser() -> impl Parser<TokenKind, Node<Pattern>, Error = Simple<Toke
     })
 }
 
-fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>> {
-    let newline = just(TokenKind::Newline).repeated().at_least(1);
+fn program_parser() -> impl Parser<Lexeme, Program, Error = Simple<Lexeme>> {
+    let newline = just(Lexeme::Newline).repeated().at_least(1);
     let expr = expr_parser().boxed();
 
-    let print_stmt = just(TokenKind::Print)
+    let print_stmt = just(Lexeme::Print)
         .ignore_then(
             expr.clone()
-                .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen)),
         )
         .map_with_span(|arg, span| {
             let span: Span = span.into();
@@ -920,22 +920,22 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         })
         .boxed();
 
-    let return_stmt = just(TokenKind::Return)
+    let return_stmt = just(Lexeme::Return)
         .ignore_then(expr.clone().or_not())
         .map_with_span(|expr, span| Node::new(Statement::Return(expr), span))
         .boxed();
 
-    let pub_keyword = just(TokenKind::Pub).or_not();
+    let pub_keyword = just(Lexeme::Pub).or_not();
 
     let let_stmt = pub_keyword
         .clone()
-        .then(just(TokenKind::Let))
+        .then(just(Lexeme::Let))
         .then(
             identifier_parser()
                 .map_with_span(Node::new)
-                .then(just(TokenKind::Colon).ignore_then(type_parser()).or_not()),
+                .then(just(Lexeme::Colon).ignore_then(type_parser()).or_not()),
         )
-        .then_ignore(just(TokenKind::Equals))
+        .then_ignore(just(Lexeme::Equals))
         .then(expr.clone())
         .map_with_span(|(((pub_kw, _let), (name, ty)), expr), span| {
             Node::new(
@@ -951,17 +951,17 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let simple_assignment_stmt = identifier_parser()
         .map_with_span(Node::new)
-        .then_ignore(just(TokenKind::Equals))
+        .then_ignore(just(Lexeme::Equals))
         .then(expr.clone())
         .map_with_span(|(name, expr), span| Node::new(Statement::Assignment { name, expr }, span));
 
     let compound_assignment_stmt = identifier_parser()
         .map_with_span(|name, span| (name, Span::new(span.start, span.end)))
         .then(choice((
-            just(TokenKind::PlusEq).to(BinaryOp::Add),
-            just(TokenKind::MinusEq).to(BinaryOp::Sub),
-            just(TokenKind::StarEq).to(BinaryOp::Mul),
-            just(TokenKind::SlashEq).to(BinaryOp::Div),
+            just(Lexeme::PlusEq).to(BinaryOp::Add),
+            just(Lexeme::MinusEq).to(BinaryOp::Sub),
+            just(Lexeme::StarEq).to(BinaryOp::Mul),
+            just(Lexeme::SlashEq).to(BinaryOp::Div),
         )))
         .then(expr.clone())
         .map_with_span(|(((name, name_span), op), rhs), span| {
@@ -986,15 +986,15 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .boxed();
 
     let path_segment = choice((
-        just(TokenKind::Dot).to(".".to_string()),
-        just(TokenKind::DoubleDot).to("..".to_string()),
+        just(Lexeme::Dot).to(".".to_string()),
+        just(Lexeme::DoubleDot).to("..".to_string()),
         identifier_parser(),
     ))
     .boxed();
 
     let path_separator = choice((
-        just(TokenKind::Slash).to("/".to_string()),
-        just(TokenKind::Colon).to(":".to_string()),
+        just(Lexeme::Slash).to("/".to_string()),
+        just(Lexeme::Colon).to(":".to_string()),
     ));
 
     let module_path = path_segment
@@ -1011,18 +1011,14 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let use_import = module_path
         .clone()
-        .then(
-            just(TokenKind::As)
-                .ignore_then(identifier_parser())
-                .or_not(),
-        )
+        .then(just(Lexeme::As).ignore_then(identifier_parser()).or_not())
         .map_with_span(|(module, alias), span| Node::new(UseImport::new(module, alias), span))
         .boxed();
 
-    let use_stmt = just(TokenKind::Use)
+    let use_stmt = just(Lexeme::Use)
         .ignore_then(
             use_import
-                .separated_by(just(TokenKind::Comma))
+                .separated_by(just(Lexeme::Comma))
                 .allow_trailing()
                 .at_least(1),
         )
@@ -1032,21 +1028,13 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     // pub use statement for re-exports
     // Syntax: pub use otterc_module.item [as alias]
     //         pub use otterc_module (re-export all)
-    let pub_use_stmt = just(TokenKind::Pub)
-        .ignore_then(just(TokenKind::Use))
+    let pub_use_stmt = just(Lexeme::Pub)
+        .ignore_then(just(Lexeme::Use))
         .ignore_then(
             module_path
                 .clone()
-                .then(
-                    just(TokenKind::Dot)
-                        .ignore_then(identifier_parser())
-                        .or_not(),
-                )
-                .then(
-                    just(TokenKind::As)
-                        .ignore_then(identifier_parser())
-                        .or_not(),
-                )
+                .then(just(Lexeme::Dot).ignore_then(identifier_parser()).or_not())
+                .then(just(Lexeme::As).ignore_then(identifier_parser()).or_not())
                 .map_with_span(|((module, item), alias), span| {
                     Node::new(
                         Statement::PubUse {
@@ -1060,53 +1048,53 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         )
         .boxed();
 
-    let break_stmt = just(TokenKind::Break)
+    let break_stmt = just(Lexeme::Break)
         .map_with_span(|_, span| Node::new(Statement::Break, span))
         .boxed();
-    let continue_stmt = just(TokenKind::Continue)
+    let continue_stmt = just(Lexeme::Continue)
         .map_with_span(|_, span| Node::new(Statement::Continue, span))
         .boxed();
-    let pass_stmt = just(TokenKind::Pass)
+    let pass_stmt = just(Lexeme::Pass)
         .map_with_span(|_, span| Node::new(Statement::Pass, span))
         .boxed();
 
     // Create a recursive parser for statements
     let statement = recursive(|stmt| {
-        let elif_block = just(TokenKind::Elif)
+        let elif_block = just(Lexeme::Elif)
             .ignore_then(expr.clone())
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then_ignore(newline.clone())
             .then(
                 stmt.clone()
                     .repeated()
                     .at_least(1)
-                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                     .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
             .map(|(cond, block)| (cond, block))
             .boxed();
 
-        let if_stmt = just(TokenKind::If)
+        let if_stmt = just(Lexeme::If)
             .ignore_then(expr.clone())
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then_ignore(newline.clone())
             .then(
                 stmt.clone()
                     .repeated()
                     .at_least(1)
-                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                     .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
             .then(elif_block.repeated())
             .then(
-                just(TokenKind::Else)
-                    .ignore_then(just(TokenKind::Colon))
+                just(Lexeme::Else)
+                    .ignore_then(just(Lexeme::Colon))
                     .ignore_then(newline.clone())
                     .then(
                         stmt.clone()
                             .repeated()
                             .at_least(1)
-                            .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                            .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                             .map_with_span(|block, span| Node::new(Block::new(block), span)),
                     )
                     .or_not(),
@@ -1124,17 +1112,17 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let for_stmt = just(TokenKind::For)
+        let for_stmt = just(Lexeme::For)
             .ignore_then(identifier_parser().map_with_span(Node::new))
-            .then_ignore(just(TokenKind::In))
+            .then_ignore(just(Lexeme::In))
             .then(expr.clone())
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then_ignore(newline.clone())
             .then(
                 stmt.clone()
                     .repeated()
                     .at_least(1)
-                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                     .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
             .map_with_span(|((var, iterable), body), span| {
@@ -1149,15 +1137,15 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
             })
             .boxed();
 
-        let while_stmt = just(TokenKind::While)
+        let while_stmt = just(Lexeme::While)
             .ignore_then(expr.clone())
-            .then_ignore(just(TokenKind::Colon))
+            .then_ignore(just(Lexeme::Colon))
             .then_ignore(newline.clone())
             .then(
                 stmt.clone()
                     .repeated()
                     .at_least(1)
-                    .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+                    .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
                     .map_with_span(|block, span| Node::new(Block::new(block), span)),
             )
             .map_with_span(|(cond, body), span| Node::new(Statement::While { cond, body }, span))
@@ -1190,33 +1178,33 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .clone()
         .repeated()
         .at_least(1)
-        .delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent))
+        .delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent))
         .map_with_span(|block, span| Node::new(Block::new(block), span))
         .boxed();
 
     let function_param = identifier_parser()
         .map_with_span(Node::new)
         .then(choice((
-            just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
+            just(Lexeme::Colon).ignore_then(type_parser()).map(Some),
             empty().to(None),
         )))
         .then(choice((
-            just(TokenKind::Equals).ignore_then(expr.clone()).map(Some),
+            just(Lexeme::Equals).ignore_then(expr.clone()).map(Some),
             empty().to(None),
         )))
         .map_with_span(|((name, ty), default), span| Node::new(Param::new(name, ty, default), span))
         .boxed();
 
     let function_params = function_param
-        .separated_by(just(TokenKind::Comma))
+        .separated_by(just(Lexeme::Comma))
         .allow_trailing()
-        .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen))
+        .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen))
         .or_not()
         .map(|params| params.unwrap_or_default());
 
-    let function_ret_type = just(TokenKind::Arrow).ignore_then(type_parser()).or_not();
+    let function_ret_type = just(Lexeme::Arrow).ignore_then(type_parser()).or_not();
 
-    let function_keyword = just(TokenKind::Fn);
+    let function_keyword = just(Lexeme::Fn);
 
     let function = pub_keyword
         .clone()
@@ -1224,7 +1212,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .then(identifier_parser())
         .then(function_params)
         .then(function_ret_type)
-        .then_ignore(just(TokenKind::Colon))
+        .then_ignore(just(Lexeme::Colon))
         .then_ignore(newline.clone())
         .then(block.clone())
         .map_with_span(|(((((pub_kw, _fn), name), params), ret_ty), body), span| {
@@ -1246,26 +1234,26 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     //         ...
     let struct_generics = || {
         identifier_parser()
-            .separated_by(just(TokenKind::Comma))
+            .separated_by(just(Lexeme::Comma))
             .allow_trailing()
-            .delimited_by(just(TokenKind::Lt), just(TokenKind::Gt))
+            .delimited_by(just(Lexeme::Lt), just(Lexeme::Gt))
             .or_not()
             .map(|params| params.unwrap_or_default())
     };
 
     let enum_variant_name = choice((
         identifier_parser(),
-        just(TokenKind::None).to("None".to_string()),
+        just(Lexeme::None).to("None".to_string()),
     ));
 
     let enum_variant = enum_variant_name
         .then(
-            just(TokenKind::Colon)
+            just(Lexeme::Colon)
                 .ignore_then(
                     type_parser()
-                        .separated_by(just(TokenKind::Comma))
+                        .separated_by(just(Lexeme::Comma))
                         .allow_trailing()
-                        .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen)),
+                        .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen)),
                 )
                 .or_not(),
         )
@@ -1282,7 +1270,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .boxed();
 
     let struct_field = identifier_parser()
-        .then_ignore(just(TokenKind::Colon))
+        .then_ignore(just(Lexeme::Colon))
         .then(type_parser())
         .map(|(name, ty)| (name, ty));
 
@@ -1303,32 +1291,32 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
     let method_function_param = identifier_parser()
         .map_with_span(Node::new)
         .then(choice((
-            just(TokenKind::Colon).ignore_then(type_parser()).map(Some),
+            just(Lexeme::Colon).ignore_then(type_parser()).map(Some),
             empty().to(None),
         )))
         .then(choice((
-            just(TokenKind::Equals).ignore_then(expr.clone()).map(Some),
+            just(Lexeme::Equals).ignore_then(expr.clone()).map(Some),
             empty().to(None),
         )))
         .map_with_span(|((name, ty), default), span| Node::new(Param::new(name, ty, default), span))
         .boxed();
 
     let method_function_params = method_function_param
-        .separated_by(just(TokenKind::Comma))
+        .separated_by(just(Lexeme::Comma))
         .allow_trailing()
-        .delimited_by(just(TokenKind::LParen), just(TokenKind::RParen))
+        .delimited_by(just(Lexeme::LParen), just(Lexeme::RParen))
         .or_not()
         .map(|params| params.unwrap_or_default())
         .boxed();
 
-    let method_function_ret_type = just(TokenKind::Arrow).ignore_then(type_parser()).or_not();
+    let method_function_ret_type = just(Lexeme::Arrow).ignore_then(type_parser()).or_not();
 
     let struct_method_def = function_keyword
         .clone()
         .then(identifier_parser())
         .then(method_function_params)
         .then(method_function_ret_type)
-        .then_ignore(just(TokenKind::Colon))
+        .then_ignore(just(Lexeme::Colon))
         .then_ignore(newline.clone())
         .then(block.clone())
         .map_with_span(|((((_kw, name), params), ret_ty), body), span| {
@@ -1375,12 +1363,12 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let struct_def = pub_keyword
         .clone()
-        .then(just(TokenKind::Struct))
+        .then(just(Lexeme::Struct))
         .then(identifier_parser())
         .then(struct_generics())
-        .then_ignore(just(TokenKind::Colon))
+        .then_ignore(just(Lexeme::Colon))
         .then_ignore(newline.clone())
-        .then(struct_body.delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent)))
+        .then(struct_body.delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent)))
         .then_ignore(newline.clone().or_not())
         .map_with_span(
             |((((pub_kw, _), name), generics), (fields, methods)), span| {
@@ -1400,12 +1388,12 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     let enum_def = pub_keyword
         .clone()
-        .then(just(TokenKind::Enum))
+        .then(just(Lexeme::Enum))
         .then(identifier_parser())
         .then(struct_generics())
-        .then_ignore(just(TokenKind::Colon))
+        .then_ignore(just(Lexeme::Colon))
         .then_ignore(newline.clone())
-        .then(enum_body.delimited_by(just(TokenKind::Indent), just(TokenKind::Dedent)))
+        .then(enum_body.delimited_by(just(Lexeme::Indent), just(Lexeme::Dedent)))
         .then_ignore(newline.clone().or_not())
         .map_with_span(|((((pub_kw, _), name), generics), variants), span| {
             Node::new(
@@ -1422,19 +1410,19 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
 
     // Type alias: type Name<T> = Type
     let type_alias_generics = identifier_parser()
-        .separated_by(just(TokenKind::Comma))
+        .separated_by(just(Lexeme::Comma))
         .allow_trailing()
-        .delimited_by(just(TokenKind::Lt), just(TokenKind::Gt))
+        .delimited_by(just(Lexeme::Lt), just(Lexeme::Gt))
         .or_not()
         .map_with_span(|params, span| Node::new(params.unwrap_or_default(), span))
         .boxed();
 
     let type_alias_def = pub_keyword
         .clone()
-        .then(just(TokenKind::Identifier("type".to_string()))) // Using identifier since "type" isn't a keyword yet
+        .then(just(Lexeme::Identifier("type".to_string()))) // Using identifier since "type" isn't a keyword yet
         .then(identifier_parser())
         .then(type_alias_generics)
-        .then_ignore(just(TokenKind::Equals))
+        .then_ignore(just(Lexeme::Equals))
         .then(type_parser())
         .then_ignore(newline.clone().or_not())
         .map_with_span(|((((pub_kw, _), name), generics), target), span| {
@@ -1455,7 +1443,7 @@ fn program_parser() -> impl Parser<TokenKind, Program, Error = Simple<TokenKind>
         .or_not()
         .ignore_then(choice((struct_def, enum_def, type_alias_def, function, statement)).repeated())
         .then_ignore(newline.repeated().or_not())
-        .then_ignore(just(TokenKind::Eof))
+        .then_ignore(just(Lexeme::Eof))
         .map(Program::new)
 }
 

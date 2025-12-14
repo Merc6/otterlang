@@ -8,8 +8,10 @@ otterc_span.path = "../otterc_span"
 otterc_lexer.path = "../otterc_lexer"
 otterc_utils.path = "../otterc_utils"
 otterc_ast.path = "../otterc_ast"
+otterc_ident.path = "../otterc_ident"
 
-chumsky = "0.9"
+winnow = { version = "0.7.14", features = ["simd"] }
+thiserror = "2"
 
 [lints]
 workspace = true
