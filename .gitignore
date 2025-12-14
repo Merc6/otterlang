@@ -56,6 +56,9 @@ ffi/*/target/
 # direnv
 .direnv/
 
+# otterlang build artifacts
+.otter/
+
 # .deb build artifacts
 package/otterlang
 package/otterlang.deb
