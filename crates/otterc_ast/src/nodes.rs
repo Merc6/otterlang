@@ -2,6 +2,7 @@ use std::convert::{AsMut, AsRef};
 use std::fmt::{Debug, Display};
 use std::hash::{Hash, Hasher};
 
+use otterc_ident::Identifier;
 use otterc_span::Span;
 
 /// A node in the AST with an associated span.
@@ -456,22 +457,22 @@ pub enum Pattern {
     /// Literal pattern (1, true, "hello")
     Literal(Node<Literal>),
     /// Identifier pattern (binds to variable)
-    Identifier(String),
+    Identifier(Identifier),
     /// Enum variant pattern (Enum.Variant(...))
     EnumVariant {
-        enum_name: String,
-        variant: String,
+        enum_name: Identifier,
+        variant: Identifier,
         fields: Vec<Node<Pattern>>,
     },
     /// Tuple/struct pattern (Point { x, y })
     Struct {
-        name: String,
-        fields: Vec<(String, Option<Node<Pattern>>)>, // field name and optional nested pattern
+        name: Identifier,
+        fields: Vec<(Identifier, Option<Node<Pattern>>)>, // field name and optional nested pattern
     },
     /// Array/list pattern ([a, b, ..rest])
     Array {
         patterns: Vec<Node<Pattern>>,
-        rest: Option<String>, // Variable name for rest pattern
+        rest: Option<Identifier>, // Variable name for rest pattern
     },
 }
 

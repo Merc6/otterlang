@@ -1380,6 +1380,7 @@ dependencies = [
 name = "otterc_ast"
 version = "0.1.0"
 dependencies = [
+ "otterc_ident",
  "otterc_span",
 ]
 
