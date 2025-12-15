@@ -31,6 +31,10 @@ where
             opt(Lexeme::Comma),
         )
     }
+
+    fn boxed(self) -> impl Parser<TokenStream<'src>, Box<O>, E> {
+        self.map(|value| Box::new(value))
+    }
 }
 
 impl<'src, O, E, P> ParserExt<'src, O, E> for P

@@ -1,3 +1,4 @@
+mod expr;
 mod literal;
 mod parser_extensions;
 mod pattern;

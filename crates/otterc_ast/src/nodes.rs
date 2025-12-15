@@ -364,10 +364,10 @@ pub enum Expr {
     Literal(Node<Literal>),
 
     // Variables and access
-    Identifier(String),
+    Identifier(Identifier),
     Member {
         object: Box<Node<Expr>>,
-        field: String,
+        field: Identifier,
     },
 
     // Function calls
